@@ -285,7 +285,7 @@ select option{background:var(--s2)}
           <input type="password" id="replicate_key" placeholder="r8_xxxxxxxxxxxxxxxxxxxx" oninput="updateKeyStatus()"/>
           <div class="field-hint">Get yours → <a href="https://replicate.com/account/api-tokens" target="_blank">replicate.com/account/api-tokens</a></div>
         </div>
-        <div class="field-hint">Used for: Wan 2.2 Character Replace (Step 1) + Wav2Lip Lip Sync (Pipeline B)</div>
+        <div class="field-hint">Used for: Wan 2.2 Character Replace (Step 1) + VideoRetalking Lip Sync (Pipeline B)</div>
       </div>
 
       <div class="card">
@@ -454,7 +454,7 @@ select option{background:var(--s2)}
         </div>
         <div class="pipeline-tab" onclick="switchPipeline('b')" id="ptab-b">
           <div class="pipeline-tab-label">Pipeline B <span class="tag tag-b">AUTOMATED</span></div>
-          <div class="pipeline-tab-sub">Wav2Lip on Replicate → Lip sync only, no webcam needed</div>
+          <div class="pipeline-tab-sub">VideoRetalking on Replicate → Lip sync only, no webcam needed</div>
         </div>
       </div>
 
@@ -546,7 +546,7 @@ select option{background:var(--s2)}
       <!-- ── Pipeline B ── -->
       <div class="pipeline-panel" id="panel-b">
         <div class="info-box">
-          <strong>How Pipeline B works:</strong> Fully automated — no webcam needed. Upload the face-swapped video and generated audio. Wav2Lip on Replicate syncs the lips to match the audio. Expressions stay from the original video but lips are perfect.
+          <strong>How Pipeline B works:</strong> Fully automated — no webcam needed. Upload the face-swapped video and generated audio. VideoRetalking on Replicate syncs the lips to match the audio. Works with AI-generated and animated characters.
         </div>
 
         <div class="card">
@@ -1083,7 +1083,7 @@ async function runAutoSync() {
   document.getElementById('prog-auto').classList.add('visible');
   document.getElementById('res-auto').classList.remove('visible');
   clearLog('log-auto');
-  addLog('log-auto', 'Starting Wav2Lip on Replicate...', 'l-accent');
+  addLog('log-auto', 'Starting VideoRetalking lip sync on Replicate...', 'l-accent');
 
   const fd = new FormData();
   fd.append('replicate_key', apiKey);
