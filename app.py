@@ -157,28 +157,24 @@ def _replicate_upload_file(api_key, file_path, mime_type):
     return resp.json()['urls']['get']
 
 
-def _replicate_run(api_key, model_version, input_data):
-    """Run a Replicate model via REST API (no SDK). Returns output."""
+def _replicate_run(api_key, model_owner_name, input_data):
+    """
+    Run a Replicate model via REST API. No version hash needed.
+    Uses POST /v1/models/{owner}/{name}/predictions — always latest version.
+    Per Replicate docs: https://replicate.com/docs/reference/http
+    """
     headers = {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json',
     }
-    body = {
-        'version': model_version,
-        'input': input_data
-    }
-    resp = requests.post(
-        'https://api.replicate.com/v1/predictions',
-        headers=headers,
-        json=body,
-        timeout=60
-    )
+    url = f'https://api.replicate.com/v1/models/{model_owner_name}/predictions'
+    resp = requests.post(url, headers=headers, json={'input': input_data}, timeout=60)
     if not resp.ok:
         raise Exception(f"Replicate {resp.status_code}: {resp.text}")
-    prediction = resp.json()
-    pred_id = prediction['id']
 
-    # Poll until complete
+    pred_id = resp.json()['id']
+
+    # Poll until complete (max 10 min)
     for _ in range(120):
         time.sleep(5)
         poll = requests.get(
@@ -192,9 +188,9 @@ def _replicate_run(api_key, model_version, input_data):
         if status == 'succeeded':
             return data['output']
         elif status in ['failed', 'canceled']:
-            raise Exception(f"Replicate failed: {data.get('error','unknown')} | logs: {data.get('logs','')}")
+            raise Exception(f"Replicate failed: {data.get('error','unknown')} | logs: {str(data.get('logs',''))[-500:]}")
 
-    raise Exception('Replicate prediction timed out after 10 minutes')
+    raise Exception('Replicate timed out after 10 minutes')
 
 
 def _run_faceswap(job_id, api_key, face_path, video_path):
@@ -212,11 +208,10 @@ def _run_faceswap(job_id, api_key, face_path, video_path):
         # https://replicate.com/lucataco/faceswap
         output = _replicate_run(
             api_key,
-            '9a4298548422074c3f57258c5d544497838d060b8c4b88b32f3ea44ca0f8a286',
+            'lucataco/faceswap',   # owner/name — no version hash needed
             {
                 'swap_image': face_url,
                 'target':     video_url_input,
-                'det_thresh': 0.1,
             }
         )
 
@@ -489,7 +484,7 @@ def _run_auto_sync(job_id, api_key, video_path, audio_path):
 
         output = _replicate_run(
             api_key,
-            '15d2041ba05a0a1dcda78deb1eb4a00f95f50e9519b7ae2d32cbf8c43cc04dda',
+            'devxpy/cog-wav2lip',   # owner/name — no version hash needed
             {
                 'face':          video_url_input,
                 'audio':         audio_url_input,
