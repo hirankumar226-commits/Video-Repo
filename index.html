@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FaceStudio — AI Video Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080808;
+  --s1:#101010;
+  --s2:#181818;
+  --s3:#222;
+  --border:#2a2a2a;
+  --text:#ececec;
+  --muted:#555;
+  --muted2:#888;
+  --accent:#c8f135;
+  --accent2:#ff5c35;
+  --blue:#4db8ff;
+  --ok:#4ade80;
+  --err:#f87171;
+  --warn:#fbbf24;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;overflow-x:hidden}
+
+/* ── Sidebar ── */
+.sidebar{width:240px;min-height:100vh;background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:10}
+.sidebar-logo{padding:28px 24px 24px;border-bottom:1px solid var(--border)}
+.logo-name{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--accent);line-height:1}
+.logo-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:1px}
+
+.nav{flex:1;padding:20px 0}
+.nav-section-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);padding:0 24px 8px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 24px;cursor:pointer;transition:all .15s;border-left:3px solid transparent;color:var(--muted2);font-size:13px;font-weight:500;position:relative}
+.nav-item:hover{color:var(--text);background:var(--s2)}
+.nav-item.active{color:var(--text);border-left-color:var(--accent);background:var(--s2)}
+.nav-item.done .nav-dot{background:var(--ok)}
+.nav-item.locked{opacity:.4;cursor:default}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--border);flex-shrink:0;transition:background .2s}
+.nav-item.active .nav-dot{background:var(--accent)}
+
+.sidebar-keys{padding:16px;margin:0 12px 20px;background:var(--s2);border-radius:10px;border:1px solid var(--border)}
+.sidebar-keys-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px}
+.key-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:11px}
+.key-name{color:var(--muted2)}
+.key-status{font-family:'DM Mono',monospace;font-size:10px}
+.key-status.set{color:var(--ok)}
+.key-status.unset{color:var(--muted)}
+
+/* ── Main ── */
+.main{margin-left:240px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+.topbar{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--s1)}
+.topbar-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--text)}
+.topbar-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
+
+.content{padding:40px;flex:1;max-width:900px}
+
+/* ── Sections ── */
+.section{display:none}
+.section.active{display:block}
+
+.section-header{margin-bottom:32px}
+.section-eyebrow{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:48px;letter-spacing:1px;line-height:1;color:var(--text)}
+.section-title span{color:var(--accent)}
+.section-desc{margin-top:12px;color:var(--muted2);font-size:14px;line-height:1.6;max-width:560px}
+
+/* ── Cards ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:20px}
+.card-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:12px}
+.card-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── Fields ── */
+.field{margin-bottom:18px}
+.field:last-child{margin-bottom:0}
+label{display:block;font-size:12px;font-weight:600;color:var(--muted2);margin-bottom:7px;letter-spacing:.3px}
+input[type=text],input[type=password],select,textarea{
+  width:100%;padding:11px 14px;background:var(--bg);border:1px solid var(--border);
+  border-radius:9px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;
+  outline:none;transition:border-color .2s;appearance:none
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:100px;font-family:'DM Sans',sans-serif;font-size:14px}
+select option{background:var(--s2)}
+.field-hint{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:6px}
+.field-hint a{color:var(--accent);text-decoration:none}
+
+.fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* ── Upload zones ── */
+.upload-zone{
+  border:2px dashed var(--border);border-radius:12px;padding:28px 20px;
+  text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden
+}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(200,241,53,.03)}
+.upload-zone.has-file{border-color:var(--ok);border-style:solid;background:rgba(74,222,128,.04)}
+.upload-icon{font-size:28px;display:block;margin-bottom:10px}
+.upload-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.upload-hint{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}
+.upload-name{font-size:11px;color:var(--ok);font-family:'DM Mono',monospace;margin-top:6px;font-weight:500}
+.preview-img{width:100%;height:100px;object-fit:cover;border-radius:8px;margin-top:10px;display:none}
+.preview-vid{width:100%;max-height:100px;border-radius:8px;margin-top:10px;display:none}
+.preview-audio{width:100%;margin-top:10px;display:none;border-radius:8px}
+
+.upload-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.upload-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+/* ── Buttons ── */
+.btn{padding:13px 24px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.btn-primary{background:var(--accent);color:#000;width:100%;justify-content:center;font-size:15px;padding:15px}
+.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 28px rgba(200,241,53,.2)}
+.btn-secondary{background:var(--s2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:rgba(248,113,113,.1);color:var(--err);border:1px solid rgba(248,113,113,.2)}
+.btn-sm{padding:8px 16px;font-size:12px;border-radius:8px}
+.btn-row{display:flex;gap:12px;margin-top:16px}
+.btn-row .btn{flex:1;justify-content:center}
+
+/* ── Progress / Status ── */
+.progress-block{margin-top:24px;display:none}
+.progress-block.visible{display:block}
+.progress-meta{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px}
+.progress-bar-bg{height:3px;background:var(--border);border-radius:2px}
+.progress-bar-fg{height:100%;background:var(--accent);border-radius:2px;transition:width .4s ease;animation:pglow 2s ease-in-out infinite}
+@keyframes pglow{0%,100%{opacity:1}50%{opacity:.5}}
+.log{margin-top:14px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:9px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);min-height:56px;max-height:140px;overflow-y:auto;line-height:2}
+.log span{display:block}
+.log .l-ok{color:var(--ok)}
+.log .l-err{color:var(--err)}
+.log .l-accent{color:var(--accent)}
+
+/* ── Result block ── */
+.result-block{margin-top:24px;display:none}
+.result-block.visible{display:block}
+.result-video{width:100%;border-radius:10px;border:1px solid var(--border);margin-bottom:14px;max-height:400px}
+.result-audio{width:100%;border-radius:10px;margin-bottom:14px}
+
+/* ── Error box ── */
+.err-box{display:none;margin-top:14px;padding:12px 16px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:9px;font-family:'DM Mono',monospace;font-size:12px;color:var(--err)}
+.err-box.visible{display:block}
+
+/* ── Info box ── */
+.info-box{padding:14px 18px;background:rgba(200,241,53,.05);border:1px solid rgba(200,241,53,.15);border-radius:10px;margin-bottom:20px;font-size:13px;color:var(--muted2);line-height:1.6}
+.info-box strong{color:var(--accent)}
+
+/* ── Pipeline tabs ── */
+.pipeline-tabs{display:flex;gap:0;margin-bottom:24px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.pipeline-tab{flex:1;padding:16px 20px;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);text-align:center}
+.pipeline-tab:last-child{border-right:none}
+.pipeline-tab.active{background:var(--s2)}
+.pipeline-tab-label{font-size:13px;font-weight:600;margin-bottom:3px}
+.pipeline-tab.active .pipeline-tab-label{color:var(--accent)}
+.pipeline-tab-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)}
+
+/* ── Pipeline panels ── */
+.pipeline-panel{display:none}
+.pipeline-panel.active{display:block}
+
+/* ── Webcam ── */
+.webcam-area{background:var(--bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px;position:relative;min-height:200px;display:flex;align-items:center;justify-content:center}
+.webcam-placeholder{text-align:center;color:var(--muted);font-size:13px}
+.webcam-placeholder .icon{font-size:36px;display:block;margin-bottom:10px}
+#webcam-video{width:100%;display:none;border-radius:0}
+.webcam-controls{display:flex;gap:10px;margin-bottom:16px}
+.rec-indicator{width:10px;height:10px;border-radius:50%;background:var(--err);animation:blink 1s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ── Steps flow ── */
+.flow-steps{display:flex;gap:0;margin-bottom:36px}
+.flow-step{flex:1;padding:14px 16px;border:1px solid var(--border);border-right:none;background:var(--s1);position:relative}
+.flow-step:first-child{border-radius:10px 0 0 10px}
+.flow-step:last-child{border-right:1px solid var(--border);border-radius:0 10px 10px 0}
+.flow-step.active{background:var(--s2);border-color:var(--accent)}
+.flow-step.done{background:rgba(74,222,128,.05);border-color:rgba(74,222,128,.3)}
+.fs-num{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:3px}
+.flow-step.active .fs-num,.flow-step.done .fs-num{color:var(--accent)}
+.fs-label{font-size:12px;font-weight:600}
+.flow-step.done .fs-label::after{content:' ✓';color:var(--ok)}
+
+/* ── Stored values display ── */
+.stored-val{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);border-radius:20px;font-family:'DM Mono',monospace;font-size:11px;color:var(--ok);margin-top:8px}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── Tag ── */
+.tag{display:inline-block;padding:3px 8px;border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500}
+.tag-a{background:rgba(77,184,255,.15);color:var(--blue)}
+.tag-b{background:rgba(255,92,53,.12);color:var(--accent2)}
+.tag-new{background:rgba(200,241,53,.15);color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ SIDEBAR ══════════ -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-name">FaceStudio</div>
+    <div class="logo-sub">AI VIDEO PIPELINE</div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-section-label" style="margin-top:4px">Setup</div>
+    <div class="nav-item active" onclick="goTo('keys')" id="nav-keys">
+      <div class="nav-dot"></div> API Keys
+    </div>
+
+    <div class="nav-section-label" style="margin-top:16px">Pipeline Steps</div>
+    <div class="nav-item" onclick="goTo('faceswap')" id="nav-faceswap">
+      <div class="nav-dot"></div> 01 · Face Swap
+    </div>
+    <div class="nav-item" onclick="goTo('voice')" id="nav-voice">
+      <div class="nav-dot"></div> 02 · Voice Clone
+    </div>
+    <div class="nav-item" onclick="goTo('sync')" id="nav-sync">
+      <div class="nav-dot"></div> 03 · Expression Sync
+    </div>
+
+    <div class="nav-section-label" style="margin-top:16px">Output</div>
+    <div class="nav-item" onclick="goTo('results')" id="nav-results">
+      <div class="nav-dot"></div> Final Results
+    </div>
+  </div>
+
+  <div class="sidebar-keys">
+    <div class="sidebar-keys-title">API KEYS STATUS</div>
+    <div class="key-row">
+      <span class="key-name">Replicate</span>
+      <span class="key-status unset" id="ks-replicate">— not set</span>
+    </div>
+    <div class="key-row">
+      <span class="key-name">ElevenLabs</span>
+      <span class="key-status unset" id="ks-elevenlabs">— not set</span>
+    </div>
+    <div class="key-row" style="margin-bottom:0">
+      <span class="key-name">Runway</span>
+      <span class="key-status unset" id="ks-runway">— not set</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════ MAIN ══════════════ -->
+<main class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-title">API KEYS</div>
+      <div class="topbar-sub" id="topbar-sub">Configure your API keys before starting</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── FLOW INDICATOR ─────────────────────────────────────────── -->
+    <div class="flow-steps" id="flow-steps">
+      <div class="flow-step active" id="fs-0"><div class="fs-num">SETUP</div><div class="fs-label">API Keys</div></div>
+      <div class="flow-step" id="fs-1"><div class="fs-num">STEP 01</div><div class="fs-label">Face Swap</div></div>
+      <div class="flow-step" id="fs-2"><div class="fs-num">STEP 02</div><div class="fs-label">Voice Clone</div></div>
+      <div class="flow-step" id="fs-3"><div class="fs-num">STEP 03</div><div class="fs-label">Expression Sync</div></div>
+      <div class="flow-step" id="fs-4"><div class="fs-num">OUTPUT</div><div class="fs-label">Final Results</div></div>
+    </div>
+
+    <!-- ══════════════════════════════ SECTION: API KEYS ══════════ -->
+    <div class="section active" id="section-keys">
+      <div class="section-header">
+        <div class="section-eyebrow">Setup</div>
+        <div class="section-title">API <span>Keys</span></div>
+        <div class="section-desc">Enter your API keys below. They're saved in your browser only — never sent anywhere except the API they belong to.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Replicate <span class="tag tag-new" style="margin-left:4px">Required</span></div>
+        <div class="field">
+          <label>API Token</label>
+          <input type="password" id="replicate_key" placeholder="r8_xxxxxxxxxxxxxxxxxxxx" oninput="updateKeyStatus()"/>
+          <div class="field-hint">Get yours → <a href="https://replicate.com/account/api-tokens" target="_blank">replicate.com/account/api-tokens</a></div>
+        </div>
+        <div class="field-hint">Used for: Face Swap (Step 1) + Automated Lip Sync (Pipeline B)</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">ElevenLabs <span class="tag tag-new" style="margin-left:4px">Required</span></div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="elevenlabs_key" placeholder="sk_xxxxxxxxxxxxxxxxxxxx" oninput="updateKeyStatus()"/>
+          <div class="field-hint">Get yours → <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">elevenlabs.io → Settings → API Keys</a></div>
+        </div>
+        <div class="field-hint">Used for: Voice Clone + Speech Generation (Step 2)</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Runway <span class="tag tag-a" style="margin-left:4px">Pipeline A only</span></div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="runway_key" placeholder="key_xxxxxxxxxxxxxxxxxxxx" oninput="updateKeyStatus()"/>
+          <div class="field-hint">Get yours → <a href="https://app.runwayml.com/settings" target="_blank">app.runwayml.com → Settings → API Keys</a> (Standard plan required)</div>
+        </div>
+        <div class="field-hint">Used for: Runway Act-Two expression transfer (Pipeline A). Optional if using Pipeline B only.</div>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveKeys()">Save Keys & Continue →</button>
+    </div>
+
+
+    <!-- ══════════════════════════════ SECTION: FACE SWAP ══════════ -->
+    <div class="section" id="section-faceswap">
+      <div class="section-header">
+        <div class="section-eyebrow">Step 01</div>
+        <div class="section-title">Face <span>Swap</span></div>
+        <div class="section-desc">Replace the real person's face in your reel with your AI character. The body movement, gestures, and energy stay intact.</div>
+      </div>
+
+      <div class="info-box">
+        <strong>What happens:</strong> Replicate runs the face-swap model in the cloud. Your AI character's face is mapped onto every frame of the source reel. Takes ~2–4 minutes per video.
+      </div>
+
+      <div class="card">
+        <div class="card-title">Upload Files</div>
+        <div class="upload-grid-2">
+          <div class="upload-zone" id="uz-face">
+            <input type="file" id="face_image" accept="image/*" onchange="handleUpload(this,'uz-face','face-name','face-preview','img')"/>
+            <span class="upload-icon">🎭</span>
+            <div class="upload-title">AI Character Face</div>
+            <div class="upload-hint">JPG / PNG · clear front-facing</div>
+            <div class="upload-name" id="face-name"></div>
+            <img id="face-preview" class="preview-img"/>
+          </div>
+          <div class="upload-zone" id="uz-video">
+            <input type="file" id="source_video" accept="video/*" onchange="handleUpload(this,'uz-video','video-name','video-preview','vid')"/>
+            <span class="upload-icon">🎬</span>
+            <div class="upload-title">Source Reel</div>
+            <div class="upload-hint">MP4 · single face · under 60s</div>
+            <div class="upload-name" id="video-name"></div>
+            <video id="video-preview" class="preview-vid" muted></video>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="runFaceSwap()" id="btn-faceswap">⚡ Run Face Swap</button>
+      <div class="err-box" id="err-faceswap"></div>
+
+      <div class="progress-block" id="prog-faceswap">
+        <div class="progress-meta">
+          <span id="prog-faceswap-label">Processing...</span>
+          <span id="prog-faceswap-pct">0%</span>
+        </div>
+        <div class="progress-bar-bg"><div class="progress-bar-fg" id="prog-faceswap-bar" style="width:0%"></div></div>
+        <div class="log" id="log-faceswap"></div>
+      </div>
+
+      <div class="result-block" id="res-faceswap">
+        <div class="card">
+          <div class="card-title">Result — Face Swapped Video ✅</div>
+          <video id="res-faceswap-video" class="result-video" controls></video>
+          <div class="btn-row">
+            <a id="dl-faceswap" class="btn btn-primary" style="text-decoration:none" download="faceswap.mp4">⬇ Download</a>
+            <button class="btn btn-secondary" onclick="goTo('voice')">Next: Voice Clone →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════ SECTION: VOICE ══════════════ -->
+    <div class="section" id="section-voice">
+      <div class="section-header">
+        <div class="section-eyebrow">Step 02</div>
+        <div class="section-title">Voice <span>Clone</span></div>
+        <div class="section-desc">Clone your AI character's voice from the original reel audio, then generate your new script in her voice with the right emotion.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Part A — Clone the Voice</div>
+        <div class="info-box">Upload 1–3 audio clips of the character speaking (extract from your original reel). Clear audio, no background music. 30s+ each is ideal.</div>
+        <div class="field">
+          <label>Voice Name</label>
+          <input type="text" id="voice_name" placeholder="e.g. Luna AI Character" value="AI Character"/>
+        </div>
+        <div class="field">
+          <label>Voice Sample Audio(s)</label>
+          <div class="upload-zone" id="uz-voicesamples">
+            <input type="file" id="voice_samples" accept="audio/*,video/*" multiple onchange="handleVoiceSamples(this)"/>
+            <span class="upload-icon">🎙️</span>
+            <div class="upload-title">Upload Voice Samples</div>
+            <div class="upload-hint">MP3, M4A, WAV, MP4 · multiple files OK</div>
+            <div class="upload-name" id="voice-sample-names"></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="cloneVoice()" id="btn-clone">🎙️ Clone Voice</button>
+        <div class="err-box" id="err-clone"></div>
+        <div id="voice-id-display" style="display:none">
+          <div class="stored-val">✅ Voice cloned · ID: <span id="voice-id-val"></span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Part B — Generate Your Script</div>
+        <div class="field">
+          <label>Your New Script</label>
+          <textarea id="script_text" placeholder="Write exactly what you want her to say...&#10;&#10;e.g. Hey everyone! Today I want to talk about something that completely changed my life..."></textarea>
+        </div>
+        <div class="fields-grid">
+          <div class="field">
+            <label>Emotion / Tone</label>
+            <select id="emotion">
+              <option value="neutral">Neutral</option>
+              <option value="excited">Excited / Energetic</option>
+              <option value="calm">Calm / Soft</option>
+              <option value="emotional">Emotional / Intense</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Voice ID (auto-filled after clone)</label>
+            <input type="text" id="voice_id_input" placeholder="Will be filled after cloning"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="generateSpeech()" id="btn-speak">🔊 Generate Speech</button>
+        <div class="err-box" id="err-speak"></div>
+
+        <div class="result-block" id="res-speech">
+          <div class="card-title" style="margin-top:20px">Generated Audio ✅</div>
+          <audio id="res-speech-audio" class="result-audio" controls></audio>
+          <div class="btn-row">
+            <a id="dl-speech" class="btn btn-secondary btn-sm" download="speech.mp3" style="text-decoration:none">⬇ Download Audio</a>
+            <button class="btn btn-secondary" onclick="goTo('sync')">Next: Expression Sync →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════ SECTION: SYNC ══════════════ -->
+    <div class="section" id="section-sync">
+      <div class="section-header">
+        <div class="section-eyebrow">Step 03</div>
+        <div class="section-title">Expression <span>Sync</span></div>
+        <div class="section-desc">Choose your pipeline. Test both and compare results.</div>
+      </div>
+
+      <div class="pipeline-tabs">
+        <div class="pipeline-tab active" onclick="switchPipeline('a')" id="ptab-a">
+          <div class="pipeline-tab-label">Pipeline A <span class="tag tag-a">YOU DRIVE IT</span></div>
+          <div class="pipeline-tab-sub">Webcam → Runway Act-Two → Full body + expression transfer</div>
+        </div>
+        <div class="pipeline-tab" onclick="switchPipeline('b')" id="ptab-b">
+          <div class="pipeline-tab-label">Pipeline B <span class="tag tag-b">AUTOMATED</span></div>
+          <div class="pipeline-tab-sub">Wav2Lip on Replicate → Lip sync only, no webcam needed</div>
+        </div>
+      </div>
+
+      <!-- ── Pipeline A ── -->
+      <div class="pipeline-panel active" id="panel-a">
+        <div class="info-box">
+          <strong>How Pipeline A works:</strong> You record yourself on webcam acting out the script (casually — just expressions and gestures). Runway Act-Two maps your performance onto the AI character's face and body. Then we merge the ElevenLabs audio so she sounds like herself.
+        </div>
+
+        <div class="card">
+          <div class="card-title">Step 1 — Record Your Performance</div>
+          <div class="webcam-area" id="webcam-area">
+            <div class="webcam-placeholder" id="webcam-placeholder">
+              <span class="icon">📷</span>
+              Click "Start Camera" then act out your script
+            </div>
+            <video id="webcam-video" autoplay muted playsinline></video>
+          </div>
+          <div class="webcam-controls">
+            <button class="btn btn-secondary btn-sm" onclick="startCamera()" id="btn-cam-start">📷 Start Camera</button>
+            <button class="btn btn-secondary btn-sm" onclick="startRecording()" id="btn-rec-start" disabled>
+              <div class="rec-indicator" style="display:none" id="rec-dot"></div> Record
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="stopRecording()" id="btn-rec-stop" disabled>⏹ Stop</button>
+            <button class="btn btn-danger btn-sm" onclick="resetWebcam()" id="btn-cam-reset" style="display:none">↺ Reset</button>
+          </div>
+          <div id="recording-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+          <video id="recorded-preview" controls style="width:100%;border-radius:10px;border:1px solid var(--border);display:none;margin-bottom:12px"></video>
+
+          <div class="field" style="margin-top:8px">
+            <label>Or upload a performance video instead</label>
+            <div class="upload-zone" id="uz-perf">
+              <input type="file" id="performance_video" accept="video/*" onchange="handleUpload(this,'uz-perf','perf-name','perf-preview','vid')"/>
+              <span class="upload-icon">🎥</span>
+              <div class="upload-title">Upload Performance Video</div>
+              <div class="upload-hint">You acting the script · MP4</div>
+              <div class="upload-name" id="perf-name"></div>
+              <video id="perf-preview" class="preview-vid" muted></video>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Step 2 — Upload Inputs for Runway</div>
+          <div class="upload-grid-2">
+            <div class="upload-zone" id="uz-charvidA">
+              <input type="file" id="char_video_a" accept="video/*" onchange="handleUpload(this,'uz-charvidA','charvid-a-name','charvid-a-preview','vid')"/>
+              <span class="upload-icon">🎬</span>
+              <div class="upload-title">Face-Swapped Video</div>
+              <div class="upload-hint">Output from Step 1</div>
+              <div class="upload-name" id="charvid-a-name"></div>
+              <video id="charvid-a-preview" class="preview-vid" muted></video>
+            </div>
+            <div class="upload-zone" id="uz-audioA">
+              <input type="file" id="audio_a" accept="audio/*" onchange="handleAudioUpload(this,'uz-audioA','audio-a-name','audio-a-preview')"/>
+              <span class="upload-icon">🎵</span>
+              <div class="upload-title">Generated Speech</div>
+              <div class="upload-hint">Output from Step 2</div>
+              <div class="upload-name" id="audio-a-name"></div>
+              <audio id="audio-a-preview" class="preview-audio" controls></audio>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="runRunwaySync()" id="btn-runway">🚀 Run Pipeline A (Runway Act-Two)</button>
+        <div class="err-box" id="err-runway"></div>
+
+        <div class="progress-block" id="prog-runway">
+          <div class="progress-meta">
+            <span id="prog-runway-label">Processing...</span>
+            <span id="prog-runway-pct">0%</span>
+          </div>
+          <div class="progress-bar-bg"><div class="progress-bar-fg" id="prog-runway-bar" style="width:0%"></div></div>
+          <div class="log" id="log-runway"></div>
+        </div>
+
+        <div class="result-block" id="res-runway">
+          <div class="card">
+            <div class="card-title">Pipeline A Result ✅ <span class="tag tag-a">RUNWAY ACT-TWO</span></div>
+            <video id="res-runway-video" class="result-video" controls></video>
+            <div class="btn-row">
+              <a id="dl-runway" class="btn btn-primary" style="text-decoration:none" download="pipeline_a.mp4">⬇ Download</a>
+              <button class="btn btn-secondary" onclick="goTo('results')">View Final Results →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Pipeline B ── -->
+      <div class="pipeline-panel" id="panel-b">
+        <div class="info-box">
+          <strong>How Pipeline B works:</strong> Fully automated — no webcam needed. Upload the face-swapped video and generated audio. Wav2Lip on Replicate syncs the lips to match the audio. Expressions stay from the original video but lips are perfect.
+        </div>
+
+        <div class="card">
+          <div class="card-title">Upload Inputs</div>
+          <div class="upload-grid-2">
+            <div class="upload-zone" id="uz-charvidB">
+              <input type="file" id="char_video_b" accept="video/*" onchange="handleUpload(this,'uz-charvidB','charvid-b-name','charvid-b-preview','vid')"/>
+              <span class="upload-icon">🎬</span>
+              <div class="upload-title">Face-Swapped Video</div>
+              <div class="upload-hint">Output from Step 1</div>
+              <div class="upload-name" id="charvid-b-name"></div>
+              <video id="charvid-b-preview" class="preview-vid" muted></video>
+            </div>
+            <div class="upload-zone" id="uz-audioB">
+              <input type="file" id="audio_b" accept="audio/*" onchange="handleAudioUpload(this,'uz-audioB','audio-b-name','audio-b-preview')"/>
+              <span class="upload-icon">🎵</span>
+              <div class="upload-title">Generated Speech</div>
+              <div class="upload-hint">Output from Step 2</div>
+              <div class="upload-name" id="audio-b-name"></div>
+              <audio id="audio-b-preview" class="preview-audio" controls></audio>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="runAutoSync()" id="btn-auto">⚡ Run Pipeline B (Automated)</button>
+        <div class="err-box" id="err-auto"></div>
+
+        <div class="progress-block" id="prog-auto">
+          <div class="progress-meta">
+            <span id="prog-auto-label">Processing...</span>
+            <span id="prog-auto-pct">0%</span>
+          </div>
+          <div class="progress-bar-bg"><div class="progress-bar-fg" id="prog-auto-bar" style="width:0%"></div></div>
+          <div class="log" id="log-auto"></div>
+        </div>
+
+        <div class="result-block" id="res-auto">
+          <div class="card">
+            <div class="card-title">Pipeline B Result ✅ <span class="tag tag-b">AUTOMATED</span></div>
+            <video id="res-auto-video" class="result-video" controls></video>
+            <div class="btn-row">
+              <a id="dl-auto" class="btn btn-primary" style="text-decoration:none" download="pipeline_b.mp4">⬇ Download</a>
+              <button class="btn btn-secondary" onclick="goTo('results')">View Final Results →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════ SECTION: RESULTS ═══════════ -->
+    <div class="section" id="section-results">
+      <div class="section-header">
+        <div class="section-eyebrow">Output</div>
+        <div class="section-title">Final <span>Results</span></div>
+        <div class="section-desc">Compare both pipelines side by side and download your final video.</div>
+      </div>
+
+      <div class="upload-grid-2">
+        <div class="card">
+          <div class="card-title">Pipeline A <span class="tag tag-a">RUNWAY</span></div>
+          <div id="r-pipeline-a-empty" style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace">Not run yet — go to Step 03 → Pipeline A</div>
+          <video id="r-pipeline-a" class="result-video" controls style="display:none"></video>
+          <a id="r-dl-a" class="btn btn-secondary btn-sm" style="text-decoration:none;display:none;margin-top:10px;justify-content:center" download="pipeline_a.mp4">⬇ Download Pipeline A</a>
+        </div>
+        <div class="card">
+          <div class="card-title">Pipeline B <span class="tag tag-b">AUTOMATED</span></div>
+          <div id="r-pipeline-b-empty" style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace">Not run yet — go to Step 03 → Pipeline B</div>
+          <video id="r-pipeline-b" class="result-video" controls style="display:none"></video>
+          <a id="r-dl-b" class="btn btn-secondary btn-sm" style="text-decoration:none;display:none;margin-top:10px;justify-content:center" download="pipeline_b.mp4">⬇ Download Pipeline B</a>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:8px">
+        <div class="card-title">All Generated Outputs</div>
+        <div id="all-outputs" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);line-height:2.2"></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+const state = {
+  currentSection: 'keys',
+  voiceId: null,
+  faceswapUrl: null,
+  speechUrl: null,
+  pipelineAUrl: null,
+  pipelineBUrl: null,
+};
+
+const sectionMeta = {
+  keys:     { title: 'API KEYS',        sub: 'Configure your API keys before starting',              fs: 0 },
+  faceswap: { title: 'STEP 01 — FACE SWAP', sub: 'Replace the real face with your AI character',    fs: 1 },
+  voice:    { title: 'STEP 02 — VOICE CLONE', sub: 'Clone voice and generate your script audio',    fs: 2 },
+  sync:     { title: 'STEP 03 — EXPRESSION SYNC', sub: 'Choose Pipeline A (Runway) or B (Auto)',    fs: 3 },
+  results:  { title: 'FINAL RESULTS',   sub: 'Compare both pipelines and download',                  fs: 4 },
+};
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+function goTo(section) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.flow-step').forEach((f,i) => {
+    f.classList.remove('active');
+  });
+
+  document.getElementById(`section-${section}`).classList.add('active');
+  document.getElementById(`nav-${section}`).classList.add('active');
+
+  const meta = sectionMeta[section];
+  document.getElementById('topbar-title').textContent = meta.title;
+  document.getElementById('topbar-sub').textContent = meta.sub;
+  document.getElementById(`fs-${meta.fs}`).classList.add('active');
+
+  if (section === 'results') updateResultsPage();
+  state.currentSection = section;
+}
+
+// ═══════════════════════════════════════════════════════
+// API KEYS
+// ═══════════════════════════════════════════════════════
+function updateKeyStatus() {
+  const r = document.getElementById('replicate_key').value.trim();
+  const e = document.getElementById('elevenlabs_key').value.trim();
+  const rw = document.getElementById('runway_key').value.trim();
+
+  setKeyStatus('ks-replicate', r);
+  setKeyStatus('ks-elevenlabs', e);
+  setKeyStatus('ks-runway', rw);
+}
+
+function setKeyStatus(id, val) {
+  const el = document.getElementById(id);
+  if (val) {
+    el.textContent = '✓ set';
+    el.className = 'key-status set';
+  } else {
+    el.textContent = '— not set';
+    el.className = 'key-status unset';
+  }
+}
+
+function saveKeys() {
+  const r = document.getElementById('replicate_key').value.trim();
+  const e = document.getElementById('elevenlabs_key').value.trim();
+  if (!r || !e) {
+    alert('Replicate and ElevenLabs keys are required to continue.');
+    return;
+  }
+  updateKeyStatus();
+  document.getElementById('nav-faceswap').classList.add('done');
+  goTo('faceswap');
+}
+
+function getKey(id) {
+  return document.getElementById(id).value.trim();
+}
+
+// ═══════════════════════════════════════════════════════
+// UPLOAD HELPERS
+// ═══════════════════════════════════════════════════════
+function handleUpload(input, zoneId, nameId, previewId, type) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById(nameId).textContent = file.name;
+  document.getElementById(zoneId).classList.add('has-file');
+  const preview = document.getElementById(previewId);
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+}
+
+function handleAudioUpload(input, zoneId, nameId, previewId) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById(nameId).textContent = file.name;
+  document.getElementById(zoneId).classList.add('has-file');
+  const preview = document.getElementById(previewId);
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+}
+
+function handleVoiceSamples(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  document.getElementById('voice-sample-names').textContent = files.map(f=>f.name).join(', ');
+  document.getElementById('uz-voicesamples').classList.add('has-file');
+}
+
+// ═══════════════════════════════════════════════════════
+// JOB POLLING + PROGRESS
+// ═══════════════════════════════════════════════════════
+function setProgress(prefix, pct, label) {
+  document.getElementById(`prog-${prefix}-bar`).style.width = pct + '%';
+  document.getElementById(`prog-${prefix}-pct`).textContent = pct + '%';
+  document.getElementById(`prog-${prefix}-label`).textContent = label;
+}
+
+function addLog(logId, msg, cls='') {
+  const log = document.getElementById(logId);
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  const t = new Date().toLocaleTimeString();
+  span.textContent = `[${t}] ${msg}`;
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearLog(logId) {
+  document.getElementById(logId).innerHTML = '';
+}
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('visible');
+}
+
+function hideErr(id) {
+  document.getElementById(id).classList.remove('visible');
+}
+
+async function pollJob(jobId, prefix, logId, onDone) {
+  const poll = setInterval(async () => {
+    try {
+      const resp = await fetch(`/api/job/${jobId}`);
+      const job = await resp.json();
+
+      setProgress(prefix, job.progress || 0, job.step || '...');
+      if (job.step) addLog(logId, job.step);
+
+      if (job.status === 'done') {
+        clearInterval(poll);
+        addLog(logId, 'Done! ✅', 'l-ok');
+        onDone(job);
+      } else if (job.status === 'error') {
+        clearInterval(poll);
+        addLog(logId, 'Error: ' + job.error, 'l-err');
+        onDone(null, job.error);
+      }
+    } catch(e) {
+      addLog(logId, 'Poll error: ' + e.message, 'l-err');
+    }
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 1: FACE SWAP
+// ═══════════════════════════════════════════════════════
+async function runFaceSwap() {
+  const apiKey = getKey('replicate_key');
+  const faceFile = document.getElementById('face_image').files[0];
+  const videoFile = document.getElementById('source_video').files[0];
+
+  hideErr('err-faceswap');
+  if (!apiKey) return showErr('err-faceswap', 'Please enter your Replicate API key in Setup');
+  if (!faceFile) return showErr('err-faceswap', 'Please upload your AI character face image');
+  if (!videoFile) return showErr('err-faceswap', 'Please upload your source reel video');
+
+  const btn = document.getElementById('btn-faceswap');
+  btn.disabled = true; btn.textContent = '⏳ Processing...';
+  document.getElementById('prog-faceswap').classList.add('visible');
+  document.getElementById('res-faceswap').classList.remove('visible');
+  clearLog('log-faceswap');
+  addLog('log-faceswap', 'Uploading files to server...', 'l-accent');
+
+  const fd = new FormData();
+  fd.append('replicate_key', apiKey);
+  fd.append('face_image', faceFile);
+  fd.append('video', videoFile);
+
+  try {
+    const resp = await fetch('/api/faceswap', { method:'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) { showErr('err-faceswap', data.error); btn.disabled=false; btn.textContent='⚡ Run Face Swap'; return; }
+
+    addLog('log-faceswap', `Job started: ${data.job_id}`, 'l-accent');
+
+    pollJob(data.job_id, 'faceswap', 'log-faceswap', (job, err) => {
+      btn.disabled = false; btn.textContent = '⚡ Run Face Swap';
+      if (err) { showErr('err-faceswap', err); return; }
+      state.faceswapUrl = job.result_url;
+      const vid = document.getElementById('res-faceswap-video');
+      vid.src = job.result_url;
+      document.getElementById('dl-faceswap').href = job.result_url;
+      document.getElementById('res-faceswap').classList.add('visible');
+      addOutput('Face Swap', job.result_url);
+    });
+  } catch(e) {
+    showErr('err-faceswap', e.message);
+    btn.disabled = false; btn.textContent = '⚡ Run Face Swap';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 2: VOICE CLONE
+// ═══════════════════════════════════════════════════════
+async function cloneVoice() {
+  const apiKey = getKey('elevenlabs_key');
+  const voiceName = document.getElementById('voice_name').value.trim();
+  const samples = document.getElementById('voice_samples').files;
+
+  hideErr('err-clone');
+  if (!apiKey) return showErr('err-clone', 'Please enter your ElevenLabs API key in Setup');
+  if (!samples.length) return showErr('err-clone', 'Please upload at least one voice sample');
+
+  const btn = document.getElementById('btn-clone');
+  btn.disabled = true; btn.textContent = '⏳ Cloning...';
+
+  const fd = new FormData();
+  fd.append('elevenlabs_key', apiKey);
+  fd.append('voice_name', voiceName || 'AI Character');
+  for (const f of samples) fd.append('voice_samples', f);
+
+  try {
+    const resp = await fetch('/api/voice/clone', { method:'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) { showErr('err-clone', data.error); btn.disabled=false; btn.textContent='🎙️ Clone Voice'; return; }
+
+    state.voiceId = data.voice_id;
+    document.getElementById('voice_id_input').value = data.voice_id;
+    document.getElementById('voice-id-val').textContent = data.voice_id;
+    document.getElementById('voice-id-display').style.display = 'block';
+    btn.disabled = false; btn.textContent = '✅ Voice Cloned!';
+  } catch(e) {
+    showErr('err-clone', e.message);
+    btn.disabled = false; btn.textContent = '🎙️ Clone Voice';
+  }
+}
+
+async function generateSpeech() {
+  const apiKey = getKey('elevenlabs_key');
+  const voiceId = document.getElementById('voice_id_input').value.trim() || state.voiceId;
+  const script = document.getElementById('script_text').value.trim();
+  const emotion = document.getElementById('emotion').value;
+
+  hideErr('err-speak');
+  if (!apiKey) return showErr('err-speak', 'ElevenLabs API key required');
+  if (!voiceId) return showErr('err-speak', 'Please clone a voice first (Part A above)');
+  if (!script) return showErr('err-speak', 'Please write your script');
+
+  const btn = document.getElementById('btn-speak');
+  btn.disabled = true; btn.textContent = '⏳ Generating...';
+
+  try {
+    const resp = await fetch('/api/voice/speak', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ elevenlabs_key: apiKey, voice_id: voiceId, script, emotion })
+    });
+    const data = await resp.json();
+    if (data.error) { showErr('err-speak', data.error); btn.disabled=false; btn.textContent='🔊 Generate Speech'; return; }
+
+    state.speechUrl = data.audio_url;
+    const audio = document.getElementById('res-speech-audio');
+    audio.src = data.audio_url;
+    document.getElementById('dl-speech').href = data.audio_url;
+    document.getElementById('res-speech').classList.add('visible');
+    addOutput('Generated Speech', data.audio_url);
+    btn.disabled = false; btn.textContent = '🔊 Generate Speech';
+  } catch(e) {
+    showErr('err-speak', e.message);
+    btn.disabled = false; btn.textContent = '🔊 Generate Speech';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 3A: RUNWAY ACT-TWO
+// ═══════════════════════════════════════════════════════
+async function runRunwaySync() {
+  const runwayKey = getKey('runway_key');
+  const charVideo = document.getElementById('char_video_a').files[0];
+  const audioFile = document.getElementById('audio_a').files[0];
+
+  // Get performance video (either recorded or uploaded)
+  let perfVideo = document.getElementById('performance_video').files[0];
+  if (!perfVideo && recordedBlob) {
+    perfVideo = new File([recordedBlob], 'performance.webm', {type:'video/webm'});
+  }
+
+  hideErr('err-runway');
+  if (!runwayKey) return showErr('err-runway', 'Please enter your Runway API key in Setup');
+  if (!charVideo) return showErr('err-runway', 'Please upload the face-swapped video from Step 1');
+  if (!perfVideo) return showErr('err-runway', 'Please record or upload your performance video');
+
+  const btn = document.getElementById('btn-runway');
+  btn.disabled = true; btn.textContent = '⏳ Processing...';
+  document.getElementById('prog-runway').classList.add('visible');
+  document.getElementById('res-runway').classList.remove('visible');
+  clearLog('log-runway');
+  addLog('log-runway', 'Uploading to Runway Act-Two...', 'l-accent');
+
+  const fd = new FormData();
+  fd.append('runway_key', runwayKey);
+  fd.append('character_video', charVideo);
+  fd.append('performance_video', perfVideo);
+  if (audioFile) fd.append('audio', audioFile);
+
+  try {
+    const resp = await fetch('/api/sync/runway', { method:'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) { showErr('err-runway', data.error); btn.disabled=false; btn.textContent='🚀 Run Pipeline A (Runway Act-Two)'; return; }
+
+    addLog('log-runway', `Job started: ${data.job_id}`, 'l-accent');
+
+    pollJob(data.job_id, 'runway', 'log-runway', (job, err) => {
+      btn.disabled = false; btn.textContent = '🚀 Run Pipeline A (Runway Act-Two)';
+      if (err) { showErr('err-runway', err); return; }
+      state.pipelineAUrl = job.result_url;
+      document.getElementById('res-runway-video').src = job.result_url;
+      document.getElementById('dl-runway').href = job.result_url;
+      document.getElementById('res-runway').classList.add('visible');
+      addOutput('Pipeline A (Runway Act-Two)', job.result_url);
+    });
+  } catch(e) {
+    showErr('err-runway', e.message);
+    btn.disabled = false; btn.textContent = '🚀 Run Pipeline A (Runway Act-Two)';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 3B: AUTOMATED (Wav2Lip)
+// ═══════════════════════════════════════════════════════
+async function runAutoSync() {
+  const apiKey = getKey('replicate_key');
+  const videoFile = document.getElementById('char_video_b').files[0];
+  const audioFile = document.getElementById('audio_b').files[0];
+
+  hideErr('err-auto');
+  if (!apiKey) return showErr('err-auto', 'Replicate API key required');
+  if (!videoFile) return showErr('err-auto', 'Please upload the face-swapped video from Step 1');
+  if (!audioFile) return showErr('err-auto', 'Please upload the generated speech from Step 2');
+
+  const btn = document.getElementById('btn-auto');
+  btn.disabled = true; btn.textContent = '⏳ Processing...';
+  document.getElementById('prog-auto').classList.add('visible');
+  document.getElementById('res-auto').classList.remove('visible');
+  clearLog('log-auto');
+  addLog('log-auto', 'Starting Wav2Lip on Replicate...', 'l-accent');
+
+  const fd = new FormData();
+  fd.append('replicate_key', apiKey);
+  fd.append('video', videoFile);
+  fd.append('audio', audioFile);
+
+  try {
+    const resp = await fetch('/api/sync/auto', { method:'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) { showErr('err-auto', data.error); btn.disabled=false; btn.textContent='⚡ Run Pipeline B (Automated)'; return; }
+
+    addLog('log-auto', `Job started: ${data.job_id}`, 'l-accent');
+
+    pollJob(data.job_id, 'auto', 'log-auto', (job, err) => {
+      btn.disabled = false; btn.textContent = '⚡ Run Pipeline B (Automated)';
+      if (err) { showErr('err-auto', err); return; }
+      state.pipelineBUrl = job.result_url;
+      document.getElementById('res-auto-video').src = job.result_url;
+      document.getElementById('dl-auto').href = job.result_url;
+      document.getElementById('res-auto').classList.add('visible');
+      addOutput('Pipeline B (Automated)', job.result_url);
+    });
+  } catch(e) {
+    showErr('err-auto', e.message);
+    btn.disabled = false; btn.textContent = '⚡ Run Pipeline B (Automated)';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// WEBCAM
+// ═══════════════════════════════════════════════════════
+let mediaStream = null, mediaRecorder = null, recordedChunks = [], recordedBlob = null;
+
+async function startCamera() {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+    const webcamVid = document.getElementById('webcam-video');
+    webcamVid.srcObject = mediaStream;
+    webcamVid.style.display = 'block';
+    document.getElementById('webcam-placeholder').style.display = 'none';
+    document.getElementById('btn-cam-start').disabled = true;
+    document.getElementById('btn-rec-start').disabled = false;
+  } catch(e) {
+    alert('Camera access denied: ' + e.message);
+  }
+}
+
+function startRecording() {
+  recordedChunks = [];
+  mediaRecorder = new MediaRecorder(mediaStream, {mimeType:'video/webm;codecs=vp9,opus'});
+  mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    recordedBlob = new Blob(recordedChunks, {type:'video/webm'});
+    const preview = document.getElementById('recorded-preview');
+    preview.src = URL.createObjectURL(recordedBlob);
+    preview.style.display = 'block';
+    document.getElementById('recording-status').textContent = `✅ Recording saved (${(recordedBlob.size/1024/1024).toFixed(1)} MB)`;
+  };
+  mediaRecorder.start();
+  document.getElementById('btn-rec-start').disabled = true;
+  document.getElementById('btn-rec-stop').disabled = false;
+  document.getElementById('rec-dot').style.display = 'block';
+  document.getElementById('recording-status').textContent = '🔴 Recording...';
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  document.getElementById('btn-rec-stop').disabled = true;
+  document.getElementById('btn-rec-start').disabled = false;
+  document.getElementById('btn-cam-reset').style.display = 'inline-flex';
+  document.getElementById('rec-dot').style.display = 'none';
+}
+
+function resetWebcam() {
+  if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+  mediaStream = null; recordedBlob = null; recordedChunks = [];
+  document.getElementById('webcam-video').style.display = 'none';
+  document.getElementById('webcam-video').srcObject = null;
+  document.getElementById('recorded-preview').style.display = 'none';
+  document.getElementById('webcam-placeholder').style.display = 'block';
+  document.getElementById('btn-cam-start').disabled = false;
+  document.getElementById('btn-rec-start').disabled = true;
+  document.getElementById('btn-rec-stop').disabled = true;
+  document.getElementById('btn-cam-reset').style.display = 'none';
+  document.getElementById('recording-status').textContent = '';
+}
+
+// ═══════════════════════════════════════════════════════
+// PIPELINE TABS
+// ═══════════════════════════════════════════════════════
+function switchPipeline(p) {
+  document.getElementById('ptab-a').classList.toggle('active', p==='a');
+  document.getElementById('ptab-b').classList.toggle('active', p==='b');
+  document.getElementById('panel-a').classList.toggle('active', p==='a');
+  document.getElementById('panel-b').classList.toggle('active', p==='b');
+}
+
+// ═══════════════════════════════════════════════════════
+// RESULTS PAGE
+// ═══════════════════════════════════════════════════════
+const outputs = [];
+function addOutput(label, url) {
+  outputs.push({label, url});
+  updateResultsPage();
+}
+
+function updateResultsPage() {
+  // Pipeline A
+  if (state.pipelineAUrl) {
+    document.getElementById('r-pipeline-a-empty').style.display='none';
+    const v = document.getElementById('r-pipeline-a');
+    v.src = state.pipelineAUrl; v.style.display='block';
+    const dl = document.getElementById('r-dl-a');
+    dl.href = state.pipelineAUrl; dl.style.display='flex';
+  }
+  // Pipeline B
+  if (state.pipelineBUrl) {
+    document.getElementById('r-pipeline-b-empty').style.display='none';
+    const v = document.getElementById('r-pipeline-b');
+    v.src = state.pipelineBUrl; v.style.display='block';
+    const dl = document.getElementById('r-dl-b');
+    dl.href = state.pipelineBUrl; dl.style.display='flex';
+  }
+  // All outputs list
+  const container = document.getElementById('all-outputs');
+  container.innerHTML = outputs.length
+    ? outputs.map(o=>`<span style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span style="color:var(--ok)">✓</span>
+        <span style="color:var(--muted2)">${o.label}</span>
+        <a href="${o.url}" download style="color:var(--accent);text-decoration:none">⬇ download</a>
+      </span>`).join('')
+    : '<span style="color:var(--muted)">No outputs yet — run the pipeline steps first.</span>';
+}
+</script>
+</body>
+</html>
