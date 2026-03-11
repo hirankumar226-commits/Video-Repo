@@ -154,10 +154,10 @@ def _run_faceswap(job_id, api_key, face_path, video_path):
         # ── Model: codeplugtech/face-swap ──────────────────────────────────
         # Change this model string if you want to try a different face swap model
         output = client.run(
-            "codeplugtech/face-swap:278a81e7ebb22db98bcba54de985d22cc1abeead2754eb1f2af717247be69b34",
+            "yan-ops/face-swap:d28f8c8f4b5f4e85ae59a4d5eda6da97ced6df3b8e97fa32ff5e854f8f56c0dc",
             input={
-                "swap_image":   face_uri,   # your AI character face
-                "target_video": video_uri,  # source reel
+                "source_image": face_uri,   # your AI character face
+                "target_image": video_uri,  # source reel
             }
         )
 
