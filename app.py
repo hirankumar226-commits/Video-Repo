@@ -27,7 +27,7 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max upload
 # ── Directories ──────────────────────────────────────────────────────────────
 # On Render: uses /data (persistent disk). Locally: uses uploads/ and outputs/
 IS_RENDER = os.environ.get('RENDER', False)
-BASE_DIR   = Path("/data") if IS_RENDER else Path(".")
+BASE_DIR   = Path("/tmp/facestudio") if IS_RENDER else Path(".")
 UPLOAD_DIR = BASE_DIR / "uploads"
 OUTPUT_DIR = BASE_DIR / "outputs"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
