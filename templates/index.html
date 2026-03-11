@@ -645,9 +645,13 @@ select option{background:var(--s2)}
       <div id="err-omnihuman" class="err-msg" style="display:none"></div>
       <button class="btn btn-primary" onclick="runOmniHuman()" id="btn-omnihuman" style="background:linear-gradient(135deg,#c8f135,#7dd320);color:#0a0a0a">⚡ Run OmniHuman 1.5</button>
 
-      <div class="progress-wrap" id="prog-omnihuman">
-        <div class="progress-bar"><div class="progress-fill" id="prog-omnihuman-fill"></div></div>
-        <div class="progress-log" id="log-omnihuman"></div>
+      <div class="progress-block" id="prog-omnihuman">
+        <div class="progress-meta">
+          <span id="prog-omnihuman-label">Processing...</span>
+          <span id="prog-omnihuman-pct">0%</span>
+        </div>
+        <div class="progress-bar-bg"><div class="progress-bar-fg" id="prog-omnihuman-bar" style="width:0%"></div></div>
+        <div class="log" id="log-omnihuman"></div>
       </div>
 
       <div class="result-block" id="res-omnihuman">
