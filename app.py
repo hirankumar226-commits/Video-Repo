@@ -27,6 +27,10 @@ OUTPUT_DIR = BASE_DIR / "outputs"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# Public base URL — Render sets this automatically, e.g. https://video-repo.onrender.com
+# Used to serve files to models that need public URLs with proper extensions (Wav2Lip)
+BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'http://localhost:5000').rstrip('/')
+
 jobs = {}
 
 
@@ -105,17 +109,27 @@ def _replicate_run(api_key, model, inputs, timeout_mins=15):
       - New models (no public versions): POST /v1/models/{owner}/{name}/predictions
       - Legacy models (versioned):       POST /v1/predictions  with version hash
     Tries the new style first; falls back to versioned if needed.
+    Automatically retries on 429 rate limit with exponential backoff.
     """
     auth    = {'Authorization': f'Bearer {api_key}'}
     headers = {**auth, 'Content-Type': 'application/json'}
 
+    # ── Submit with retry on 429 ──────────────────────────────────────────────
+    def submit_with_retry(url, body):
+        for attempt in range(6):
+            r = requests.post(url, headers=headers, json=body, timeout=60)
+            if r.status_code == 429:
+                retry_after = int(r.json().get('retry_after', 15))
+                wait = max(retry_after, 10) * (attempt + 1)
+                time.sleep(wait)
+                continue
+            return r
+        raise Exception(f"Replicate still rate-limiting after 6 retries. Add credit at replicate.com/account/billing to raise your limit.")
+
     # ── Try new-style deployment endpoint first ───────────────────────────────
-    # Used by newer official models (wan-video, stability-ai, etc.)
-    pr = requests.post(
+    pr = submit_with_retry(
         f'https://api.replicate.com/v1/models/{model}/predictions',
-        headers=headers,
-        json={'input': inputs},
-        timeout=60
+        {'input': inputs}
     )
 
     # ── Fall back to versioned endpoint if new-style isn't supported ──────────
@@ -130,11 +144,9 @@ def _replicate_run(api_key, model, inputs, timeout_mins=15):
         if not vs:
             raise Exception(f"No versions found for {model}")
         version = vs[0]['id']
-        pr = requests.post(
+        pr = submit_with_retry(
             'https://api.replicate.com/v1/predictions',
-            headers=headers,
-            json={'version': version, 'input': inputs},
-            timeout=60
+            {'version': version, 'input': inputs}
         )
 
     if not pr.ok:
@@ -385,12 +397,18 @@ def start_auto_sync():
 
 
 def _run_wav2lip(job_id, key, video_path, audio_path):
-    import traceback
+    import traceback, shutil
     try:
-        update_job(job_id, status='running', progress=20, step='Uploading video...')
-        vu = _replicate_upload(key, video_path, 'video/mp4')
-        update_job(job_id, progress=35, step='Uploading audio...')
-        au = _replicate_upload(key, audio_path, 'audio/mpeg')
+        # Wav2Lip's cog model checks file extension via args.face.split('.')[1]
+        # Replicate upload URLs have no extension → IndexError.
+        # Fix: serve files from our own public URL (which has .mp4/.mp3 in the path).
+        update_job(job_id, status='running', progress=20, step='Preparing files...')
+        vid_name = f"wav2lip_face_{job_id}.mp4"
+        aud_name = f"wav2lip_audio_{job_id}.mp3"
+        shutil.copy(str(video_path), str(UPLOAD_DIR / vid_name))
+        shutil.copy(str(audio_path), str(UPLOAD_DIR / aud_name))
+        vu = f"{BASE_URL}/files/{vid_name}"
+        au = f"{BASE_URL}/files/{aud_name}"
         update_job(job_id, progress=50, step='Running Wav2Lip...')
 
         out = _replicate_run(key, 'devxpy/cog-wav2lip',
