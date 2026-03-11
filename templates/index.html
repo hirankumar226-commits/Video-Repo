@@ -670,11 +670,23 @@ function goTo(section) {
 // ═══════════════════════════════════════════════════════
 // API KEYS
 // ═══════════════════════════════════════════════════════
+// ── Load saved keys from localStorage on page load ──
+function loadSavedKeys() {
+  ['replicate_key', 'elevenlabs_key', 'runway_key'].forEach(id => {
+    const saved = localStorage.getItem('fs_' + id);
+    if (saved) document.getElementById(id).value = saved;
+  });
+  updateKeyStatus();
+  if (localStorage.getItem('fs_replicate_key') && localStorage.getItem('fs_elevenlabs_key')) {
+    document.getElementById('nav-faceswap').classList.add('done');
+  }
+}
+window.addEventListener('DOMContentLoaded', loadSavedKeys);
+
 function updateKeyStatus() {
   const r = document.getElementById('replicate_key').value.trim();
   const e = document.getElementById('elevenlabs_key').value.trim();
   const rw = document.getElementById('runway_key').value.trim();
-
   setKeyStatus('ks-replicate', r);
   setKeyStatus('ks-elevenlabs', e);
   setKeyStatus('ks-runway', rw);
@@ -682,29 +694,26 @@ function updateKeyStatus() {
 
 function setKeyStatus(id, val) {
   const el = document.getElementById(id);
-  if (val) {
-    el.textContent = '✓ set';
-    el.className = 'key-status set';
-  } else {
-    el.textContent = '— not set';
-    el.className = 'key-status unset';
-  }
+  if (val) { el.textContent = '✓ set'; el.className = 'key-status set'; }
+  else { el.textContent = '— not set'; el.className = 'key-status unset'; }
 }
 
 function saveKeys() {
   const r = document.getElementById('replicate_key').value.trim();
   const e = document.getElementById('elevenlabs_key').value.trim();
-  if (!r || !e) {
-    alert('Replicate and ElevenLabs keys are required to continue.');
-    return;
-  }
+  const rw = document.getElementById('runway_key').value.trim();
+  if (!r || !e) { alert('Replicate and ElevenLabs keys are required to continue.'); return; }
+  localStorage.setItem('fs_replicate_key', r);
+  localStorage.setItem('fs_elevenlabs_key', e);
+  if (rw) localStorage.setItem('fs_runway_key', rw);
   updateKeyStatus();
   document.getElementById('nav-faceswap').classList.add('done');
   goTo('faceswap');
 }
 
 function getKey(id) {
-  return document.getElementById(id).value.trim();
+  const fromInput = document.getElementById(id).value.trim();
+  return fromInput || localStorage.getItem('fs_' + id) || '';
 }
 
 // ═══════════════════════════════════════════════════════
