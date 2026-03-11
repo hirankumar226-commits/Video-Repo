@@ -162,7 +162,6 @@ def _replicate_run(api_key, model_version, input_data):
     headers = {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json',
-        'Prefer': 'wait'
     }
     body = {
         'version': model_version,
@@ -174,7 +173,8 @@ def _replicate_run(api_key, model_version, input_data):
         json=body,
         timeout=60
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        raise Exception(f"Replicate {resp.status_code}: {resp.text}")
     prediction = resp.json()
     pred_id = prediction['id']
 
@@ -192,7 +192,7 @@ def _replicate_run(api_key, model_version, input_data):
         if status == 'succeeded':
             return data['output']
         elif status in ['failed', 'canceled']:
-            raise Exception(f"Replicate prediction failed: {data.get('error', 'Unknown error')}")
+            raise Exception(f"Replicate failed: {data.get('error','unknown')} | logs: {data.get('logs','')}")
 
     raise Exception('Replicate prediction timed out after 10 minutes')
 
@@ -216,6 +216,7 @@ def _run_faceswap(job_id, api_key, face_path, video_path):
             {
                 'swap_image': face_url,
                 'target':     video_url_input,
+                'det_thresh': 0.1,
             }
         )
 
