@@ -399,21 +399,38 @@ def start_auto_sync():
 def _run_wav2lip(job_id, key, video_path, audio_path):
     import traceback, shutil
     try:
-        # Wav2Lip's cog model checks file extension via args.face.split('.')[1]
-        # Replicate upload URLs have no extension → IndexError.
-        # Fix: serve files from our own public URL (which has .mp4/.mp3 in the path).
-        update_job(job_id, status='running', progress=20, step='Preparing files...')
-        vid_name = f"wav2lip_face_{job_id}.mp4"
-        aud_name = f"wav2lip_audio_{job_id}.mp3"
-        shutil.copy(str(video_path), str(UPLOAD_DIR / vid_name))
+        update_job(job_id, status='running', progress=15, step='Preprocessing video for face detection...')
+
+        # Wav2Lip's CNN face detector fails on:
+        #   - High-res video (>720p): scale down to 480p
+        #   - Non-standard codecs / colorspace: re-encode to h264/yuv420p
+        #   - Animated/stylized faces: increase pads so detector catches more of the frame
+        vid_prep  = UPLOAD_DIR / f"wav2lip_face_{job_id}.mp4"
+        aud_name  = f"wav2lip_audio_{job_id}.mp3"
+        ffmpeg_result = subprocess.run([
+            'ffmpeg', '-y', '-i', str(video_path),
+            '-vf', 'scale=-2:480',          # max height 480p, keep aspect
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',          # standard colorspace for CNNs
+            '-preset', 'fast',
+            '-an',                          # strip audio — wav2lip replaces it anyway
+            str(vid_prep)
+        ], capture_output=True, text=True)
+        if ffmpeg_result.returncode != 0:
+            raise Exception(f"ffmpeg preprocessing failed: {ffmpeg_result.stderr}")
+
         shutil.copy(str(audio_path), str(UPLOAD_DIR / aud_name))
-        vu = f"{BASE_URL}/files/{vid_name}"
+
+        # Serve files from our own public URL so Wav2Lip gets proper .mp4/.mp3 extensions
+        # (Replicate storage URLs have no extension -> args.face.split('.')[1] crashes)
+        vu = f"{BASE_URL}/files/{vid_prep.name}"
         au = f"{BASE_URL}/files/{aud_name}"
         update_job(job_id, progress=50, step='Running Wav2Lip...')
 
         out = _replicate_run(key, 'devxpy/cog-wav2lip',
-                             {'face': vu, 'audio': au, 'pads': '0 10 0 0',
-                              'smooth': True, 'resize_factor': 1, 'nosmooth': False})
+                             {'face': vu, 'audio': au,
+                              'pads': '0 20 0 0',   # extra top pad helps detect partial faces
+                              'smooth': True, 'resize_factor': 2, 'nosmooth': False})
         out_url = str(out) if not isinstance(out, list) else str(out[0])
 
         update_job(job_id, progress=85, step='Downloading result...')
