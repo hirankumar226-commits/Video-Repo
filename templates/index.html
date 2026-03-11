@@ -274,13 +274,13 @@ select option{background:var(--s2)}
       </div>
 
       <div class="card">
-        <div class="card-title">Replicate <span class="tag tag-new" style="margin-left:4px">Required</span></div>
+        <div class="card-title">Replicate <span class="tag tag-new" style="margin-left:4px">Required — Step 1 + Pipeline B</span></div>
         <div class="field">
           <label>API Token</label>
           <input type="password" id="replicate_key" placeholder="r8_xxxxxxxxxxxxxxxxxxxx" oninput="updateKeyStatus()"/>
           <div class="field-hint">Get yours → <a href="https://replicate.com/account/api-tokens" target="_blank">replicate.com/account/api-tokens</a></div>
         </div>
-        <div class="field-hint">Used for: Face Swap (Step 1) + Automated Lip Sync (Pipeline B)</div>
+        <div class="field-hint">Used for: Wan 2.2 Character Replace (Step 1) + Wav2Lip Lip Sync (Pipeline B)</div>
       </div>
 
       <div class="card">
@@ -307,16 +307,16 @@ select option{background:var(--s2)}
     </div>
 
 
-    <!-- ══════════════════════════════ SECTION: FACE SWAP ══════════ -->
+    <!-- ══════════════════════════════ SECTION: CHARACTER REPLACE ══════════ -->
     <div class="section" id="section-faceswap">
       <div class="section-header">
         <div class="section-eyebrow">Step 01</div>
-        <div class="section-title">Face <span>Swap</span></div>
-        <div class="section-desc">Replace the real person's face in your reel with your AI character. The body movement, gestures, and energy stay intact.</div>
+        <div class="section-title">Character <span>Replace</span></div>
+        <div class="section-desc">Replace the entire person in your reel with your AI character — body, face, expressions, gestures all transfer naturally.</div>
       </div>
 
       <div class="info-box">
-        <strong>What happens:</strong> Replicate runs the face-swap model in the cloud. Your AI character's face is mapped onto every frame of the source reel. Takes ~2–4 minutes per video.
+        <strong>What happens:</strong> Wan 2.2 Animate Replace (by Tongyi Lab) extracts skeleton signals + facial expressions from the source video and applies them to your character image. A relighting module matches the scene's lighting so the character looks like they were really there. Takes ~5–10 min at 720p.
       </div>
 
       <div class="card">
@@ -341,7 +341,7 @@ select option{background:var(--s2)}
         </div>
       </div>
 
-      <button class="btn btn-primary" onclick="runFaceSwap()" id="btn-faceswap">⚡ Run Face Swap</button>
+      <button class="btn btn-primary" onclick="runFaceSwap()" id="btn-faceswap">⚡ Run Character Replace</button>
       <div class="err-box" id="err-faceswap"></div>
 
       <div class="progress-block" id="prog-faceswap">
@@ -673,8 +673,9 @@ function goTo(section) {
 // ── Load saved keys from localStorage on page load ──
 function loadSavedKeys() {
   ['replicate_key', 'elevenlabs_key', 'runway_key'].forEach(id => {
+    const el = document.getElementById(id);
     const saved = localStorage.getItem('fs_' + id);
-    if (saved) document.getElementById(id).value = saved;
+    if (saved && el) el.value = saved;
   });
   updateKeyStatus();
   if (localStorage.getItem('fs_replicate_key') && localStorage.getItem('fs_elevenlabs_key')) {
@@ -694,6 +695,7 @@ function updateKeyStatus() {
 
 function setKeyStatus(id, val) {
   const el = document.getElementById(id);
+  if (!el) return;
   if (val) { el.textContent = '✓ set'; el.className = 'key-status set'; }
   else { el.textContent = '— not set'; el.className = 'key-status unset'; }
 }
@@ -712,7 +714,8 @@ function saveKeys() {
 }
 
 function getKey(id) {
-  const fromInput = document.getElementById(id).value.trim();
+  const el = document.getElementById(id);
+  const fromInput = el ? el.value.trim() : '';
   return fromInput || localStorage.getItem('fs_' + id) || '';
 }
 
@@ -804,7 +807,7 @@ async function pollJob(jobId, prefix, logId, onDone) {
 }
 
 // ═══════════════════════════════════════════════════════
-// STEP 1: FACE SWAP
+// STEP 1: CHARACTER REPLACE (Wan 2.2 Animate Replace)
 // ═══════════════════════════════════════════════════════
 async function runFaceSwap() {
   const apiKey = getKey('replicate_key');
@@ -813,7 +816,7 @@ async function runFaceSwap() {
 
   hideErr('err-faceswap');
   if (!apiKey) return showErr('err-faceswap', 'Please enter your Replicate API key in Setup');
-  if (!faceFile) return showErr('err-faceswap', 'Please upload your AI character face image');
+  if (!faceFile) return showErr('err-faceswap', 'Please upload your AI character image');
   if (!videoFile) return showErr('err-faceswap', 'Please upload your source reel video');
 
   const btn = document.getElementById('btn-faceswap');
@@ -821,33 +824,34 @@ async function runFaceSwap() {
   document.getElementById('prog-faceswap').classList.add('visible');
   document.getElementById('res-faceswap').classList.remove('visible');
   clearLog('log-faceswap');
-  addLog('log-faceswap', 'Uploading files to server...', 'l-accent');
+  addLog('log-faceswap', 'Uploading to Replicate... (Wan 2.2 — takes ~5–10 min at 720p)', 'l-accent');
 
   const fd = new FormData();
   fd.append('replicate_key', apiKey);
   fd.append('face_image', faceFile);
   fd.append('video', videoFile);
+  fd.append('resolution', '720p');
 
   try {
     const resp = await fetch('/api/faceswap', { method:'POST', body: fd });
     const data = await resp.json();
-    if (data.error) { showErr('err-faceswap', data.error); btn.disabled=false; btn.textContent='⚡ Run Face Swap'; return; }
+    if (data.error) { showErr('err-faceswap', data.error); btn.disabled=false; btn.textContent='⚡ Run Character Replace'; return; }
 
     addLog('log-faceswap', `Job started: ${data.job_id}`, 'l-accent');
 
     pollJob(data.job_id, 'faceswap', 'log-faceswap', (job, err) => {
-      btn.disabled = false; btn.textContent = '⚡ Run Face Swap';
+      btn.disabled = false; btn.textContent = '⚡ Run Character Replace';
       if (err) { showErr('err-faceswap', err); return; }
       state.faceswapUrl = job.result_url;
       const vid = document.getElementById('res-faceswap-video');
       vid.src = job.result_url;
       document.getElementById('dl-faceswap').href = job.result_url;
       document.getElementById('res-faceswap').classList.add('visible');
-      addOutput('Face Swap', job.result_url);
+      addOutput('Character Replace', job.result_url);
     });
   } catch(e) {
     showErr('err-faceswap', e.message);
-    btn.disabled = false; btn.textContent = '⚡ Run Face Swap';
+    btn.disabled = false; btn.textContent = '⚡ Run Character Replace';
   }
 }
 
