@@ -209,7 +209,8 @@ def _run_wan_replace(job_id, key, face_path, video_path, resolution, prompt):
         video_url = _replicate_upload(key, video_path, 'video/mp4')
 
         update_job(job_id, progress=40, step='Running Wan 2.2 Animate Replace...')
-        inputs = {'image': face_url, 'video': video_url, 'resolution': resolution}
+        res_clean = resolution.replace('p', '')  # '720p' -> '720'
+        inputs = {'character_image': face_url, 'video': video_url, 'resolution': res_clean}
         if prompt:
             inputs['prompt'] = prompt
 
