@@ -226,6 +226,11 @@ select option{background:var(--s2)}
     <div class="nav-item" onclick="goTo('results')" id="nav-results">
       <div class="nav-dot"></div> Final Results
     </div>
+
+    <div class="nav-section-label" style="margin-top:16px">✨ New</div>
+    <div class="nav-item" onclick="goTo('omnihuman')" id="nav-omnihuman">
+      <div class="nav-dot"></div> Pipeline C · OmniHuman
+    </div>
   </div>
 
   <div class="sidebar-keys">
@@ -592,6 +597,72 @@ select option{background:var(--s2)}
     </div>
 
 
+    <!-- ══════════════════════════════ SECTION: OMNIHUMAN (Pipeline C) ══════════ -->
+    <div class="section" id="section-omnihuman">
+      <div class="section-header">
+        <div class="section-eyebrow">Pipeline C · Experimental</div>
+        <div class="section-title">OmniHuman <span>1.5</span></div>
+        <div class="section-desc">Skip Steps 1 and 3 entirely. Give it your AI character photo + the ElevenLabs audio — it generates a fully animated, lip-synced video in one shot.</div>
+      </div>
+
+      <div class="info-box" style="border-color:rgba(200,241,53,.3);background:rgba(200,241,53,.05)">
+        <strong>How it works:</strong> OmniHuman 1.5 (ByteDance) understands speech semantics — the character doesn't just mouth words, it reacts emotionally to what it's saying. Sad content → sad expression. Excited delivery → animated gestures. Lip sync, body language, and facial expressions all come from one model. Audio must be ≤35 seconds.
+        <br><br>
+        <strong>What you need:</strong> (1) Your AI character image from Step 01, and (2) the ElevenLabs audio from Step 02. No source reel. No Wan 2.2. No Wav2Lip.
+      </div>
+
+      <div class="card">
+        <div class="card-title">Upload Inputs</div>
+        <div class="upload-grid-2">
+          <div class="upload-zone" id="uz-oh-image">
+            <input type="file" id="oh_image" accept="image/*" onchange="handleUpload(this,'uz-oh-image','oh-img-name','oh-img-preview','img')"/>
+            <span class="upload-icon">🎭</span>
+            <div class="upload-title">AI Character Image</div>
+            <div class="upload-hint">Same photo used in Step 01</div>
+            <div class="upload-name" id="oh-img-name"></div>
+            <img id="oh-img-preview" style="display:none;max-height:80px;margin-top:8px;border-radius:6px"/>
+          </div>
+          <div class="upload-zone" id="uz-oh-audio">
+            <input type="file" id="oh_audio" accept="audio/*" onchange="handleUpload(this,'uz-oh-audio','oh-aud-name',null,'audio')"/>
+            <span class="upload-icon">🎙️</span>
+            <div class="upload-title">Generated Audio</div>
+            <div class="upload-hint">ElevenLabs MP3 from Step 02 (≤35s)</div>
+            <div class="upload-name" id="oh-aud-name"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Scene Direction <span style="font-weight:400;color:var(--muted);font-size:12px">optional</span></div>
+        <div class="field">
+          <label>Prompt</label>
+          <textarea id="oh_prompt" rows="3" placeholder="e.g. The camera slowly moves to a medium front shot. She appears calm and warm, looking directly at the camera as she talks, occasionally nodding. Natural indoor lighting."
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;resize:vertical"></textarea>
+          <div class="field-hint">Use: [Camera] + [Emotion] + [Speaking style] + [Actions]. Include the word "talks" to improve lip sync.</div>
+        </div>
+      </div>
+
+      <div id="err-omnihuman" class="err-msg" style="display:none"></div>
+      <button class="btn btn-primary" onclick="runOmniHuman()" id="btn-omnihuman" style="background:linear-gradient(135deg,#c8f135,#7dd320);color:#0a0a0a">⚡ Run OmniHuman 1.5</button>
+
+      <div class="progress-wrap" id="prog-omnihuman">
+        <div class="progress-bar"><div class="progress-fill" id="prog-omnihuman-fill"></div></div>
+        <div class="progress-log" id="log-omnihuman"></div>
+      </div>
+
+      <div class="result-block" id="res-omnihuman">
+        <div class="card">
+          <div class="card-title">Pipeline C Result ✅ <span class="tag tag-new">OMNIHUMAN</span></div>
+          <video id="res-omnihuman-video" class="result-video" controls></video>
+          <div class="btn-row">
+            <a id="dl-omnihuman" class="btn btn-primary" style="text-decoration:none;background:linear-gradient(135deg,#c8f135,#7dd320);color:#0a0a0a" download="pipeline_c_omnihuman.mp4">⬇ Download</a>
+            <button class="btn btn-secondary" onclick="goTo('results')">View All Results →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
     <!-- ══════════════════════════════ SECTION: RESULTS ═══════════ -->
     <div class="section" id="section-results">
       <div class="section-header">
@@ -616,6 +687,13 @@ select option{background:var(--s2)}
       </div>
 
       <div class="card" style="margin-top:8px">
+        <div class="card-title">Pipeline C <span class="tag tag-new">OMNIHUMAN 1.5</span></div>
+        <div id="r-pipeline-c-empty" style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace">Not run yet — go to Pipeline C → OmniHuman 1.5</div>
+        <video id="r-pipeline-c" class="result-video" controls style="display:none"></video>
+        <a id="r-dl-c" class="btn btn-secondary btn-sm" style="text-decoration:none;display:none;margin-top:10px;justify-content:center" download="pipeline_c.mp4">⬇ Download Pipeline C</a>
+      </div>
+
+      <div class="card" style="margin-top:8px">
         <div class="card-title">All Generated Outputs</div>
         <div id="all-outputs" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);line-height:2.2"></div>
       </div>
@@ -635,14 +713,16 @@ const state = {
   speechUrl: null,
   pipelineAUrl: null,
   pipelineBUrl: null,
+  pipelineCUrl: null,
 };
 
 const sectionMeta = {
-  keys:     { title: 'API KEYS',        sub: 'Configure your API keys before starting',              fs: 0 },
-  faceswap: { title: 'STEP 01 — FACE SWAP', sub: 'Replace the real face with your AI character',    fs: 1 },
-  voice:    { title: 'STEP 02 — VOICE CLONE', sub: 'Clone voice and generate your script audio',    fs: 2 },
-  sync:     { title: 'STEP 03 — EXPRESSION SYNC', sub: 'Choose Pipeline A (Runway) or B (Auto)',    fs: 3 },
-  results:  { title: 'FINAL RESULTS',   sub: 'Compare both pipelines and download',                  fs: 4 },
+  keys:       { title: 'API KEYS',              sub: 'Configure your API keys before starting',            fs: 0 },
+  faceswap:   { title: 'STEP 01 — FACE SWAP',  sub: 'Replace the real face with your AI character',       fs: 1 },
+  voice:      { title: 'STEP 02 — VOICE CLONE',sub: 'Clone voice and generate your script audio',         fs: 2 },
+  sync:       { title: 'STEP 03 — EXPRESSION SYNC', sub: 'Choose Pipeline A (Runway) or B (Auto)',        fs: 3 },
+  results:    { title: 'FINAL RESULTS',         sub: 'Compare all pipelines and download',                 fs: 4 },
+  omnihuman:  { title: 'PIPELINE C — OMNIHUMAN 1.5', sub: 'One model: image + audio → full video',        fs: 0 },
 };
 
 // ═══════════════════════════════════════════════════════
@@ -1098,6 +1178,59 @@ function switchPipeline(p) {
 }
 
 // ═══════════════════════════════════════════════════════
+// PIPELINE C: OMNIHUMAN 1.5
+// ═══════════════════════════════════════════════════════
+async function runOmniHuman() {
+  const apiKey    = getKey('replicate_key');
+  const imageFile = document.getElementById('oh_image').files[0];
+  const audioFile = document.getElementById('oh_audio').files[0];
+  const prompt    = document.getElementById('oh_prompt').value.trim();
+
+  hideErr('err-omnihuman');
+  if (!apiKey)    return showErr('err-omnihuman', 'Replicate API key required — set it in Setup');
+  if (!imageFile) return showErr('err-omnihuman', 'Please upload your AI character image');
+  if (!audioFile) return showErr('err-omnihuman', 'Please upload your ElevenLabs audio file');
+
+  const btn = document.getElementById('btn-omnihuman');
+  btn.disabled = true; btn.textContent = '⏳ Generating...';
+  document.getElementById('prog-omnihuman').classList.add('visible');
+  document.getElementById('res-omnihuman').classList.remove('visible');
+  clearLog('log-omnihuman');
+  addLog('log-omnihuman', 'Uploading to Replicate... (OmniHuman 1.5 — ~3–5 min)', 'l-accent');
+
+  const fd = new FormData();
+  fd.append('replicate_key', apiKey);
+  fd.append('image', imageFile);
+  fd.append('audio', audioFile);
+  if (prompt) fd.append('prompt', prompt);
+
+  try {
+    const resp = await fetch('/api/omnihuman', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) {
+      showErr('err-omnihuman', data.error);
+      btn.disabled = false; btn.textContent = '⚡ Run OmniHuman 1.5';
+      return;
+    }
+
+    addLog('log-omnihuman', `Job started: ${data.job_id}`, 'l-accent');
+
+    pollJob(data.job_id, 'omnihuman', 'log-omnihuman', (job, err) => {
+      btn.disabled = false; btn.textContent = '⚡ Run OmniHuman 1.5';
+      if (err) { showErr('err-omnihuman', err); return; }
+      state.pipelineCUrl = job.result_url;
+      document.getElementById('res-omnihuman-video').src = job.result_url;
+      document.getElementById('dl-omnihuman').href = job.result_url;
+      document.getElementById('res-omnihuman').classList.add('visible');
+      addOutput('Pipeline C (OmniHuman 1.5)', job.result_url);
+    });
+  } catch(e) {
+    showErr('err-omnihuman', e.message);
+    btn.disabled = false; btn.textContent = '⚡ Run OmniHuman 1.5';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // RESULTS PAGE
 // ═══════════════════════════════════════════════════════
 const outputs = [];
@@ -1122,6 +1255,14 @@ function updateResultsPage() {
     v.src = state.pipelineBUrl; v.style.display='block';
     const dl = document.getElementById('r-dl-b');
     dl.href = state.pipelineBUrl; dl.style.display='flex';
+  }
+  // Pipeline C — OmniHuman 1.5
+  if (state.pipelineCUrl) {
+    document.getElementById('r-pipeline-c-empty').style.display='none';
+    const v = document.getElementById('r-pipeline-c');
+    v.src = state.pipelineCUrl; v.style.display='block';
+    const dl = document.getElementById('r-dl-c');
+    dl.href = state.pipelineCUrl; dl.style.display='flex';
   }
   // All outputs list
   const container = document.getElementById('all-outputs');

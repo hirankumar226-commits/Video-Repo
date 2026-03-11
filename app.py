@@ -408,6 +408,100 @@ def _run_wav2lip(job_id, key, video_path, audio_path):
         update_job(job_id, status='error', error=f"{e} | {traceback.format_exc()}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PIPELINE C — OMNIHUMAN 1.5  (Replicate: bytedance/omni-human-1.5)
+# https://replicate.com/bytedance/omni-human-1.5
+#
+# Replaces Steps 1 + 3 entirely. One call does everything:
+#   • character image  → identity anchor
+#   • audio (ElevenLabs output) → drives lip sync, expressions, gestures
+#   • optional prompt  → control camera, emotion, staging
+#
+# The model understands speech semantics — so if the character says something
+# sad, it looks sad. If excited, it gestures excitedly. Not just beat-matching.
+#
+# Inputs:
+#   image  → AI character photo (portrait / half-body / full-body)
+#   audio  → ElevenLabs MP3 (max 35 seconds)
+#   prompt → optional scene direction (camera, emotion, actions)
+# Output: video URL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/omnihuman', methods=['POST'])
+def start_omnihuman():
+    replicate_key = request.form.get('replicate_key', '').strip()
+    image_file    = request.files.get('image')
+    audio_file    = request.files.get('audio')
+    prompt        = request.form.get('prompt', '').strip()
+
+    if not replicate_key:
+        return jsonify({'error': 'Replicate API key required'}), 400
+    if not image_file:
+        return jsonify({'error': 'Character image required'}), 400
+    if not audio_file:
+        return jsonify({'error': 'Audio file required (use ElevenLabs output from Step 2)'}), 400
+
+    image_path = save_upload(image_file, '.jpg')
+    audio_path = save_upload(audio_file, '.mp3')
+
+    job_id = uuid.uuid4().hex
+    jobs[job_id] = {'status': 'pending', 'progress': 0, 'step': 'Queued...'}
+
+    threading.Thread(
+        target=_run_omnihuman,
+        args=(job_id, replicate_key, image_path, audio_path, prompt),
+        daemon=True
+    ).start()
+
+    return jsonify({'job_id': job_id})
+
+
+def _run_omnihuman(job_id, api_key, image_path, audio_path, prompt):
+    import traceback
+    try:
+        update_job(job_id, status='running', progress=10, step='Uploading character image...')
+        image_url = _replicate_upload(api_key, image_path, 'image/jpeg')
+
+        update_job(job_id, progress=25, step='Uploading audio...')
+        audio_url = _replicate_upload(api_key, audio_path, 'audio/mpeg')
+
+        update_job(job_id, progress=40, step='Running OmniHuman 1.5 — generating video...')
+
+        # OmniHuman 1.5 input schema:
+        #   image  → portrait URL
+        #   audio  → speech audio URL (≤35s)
+        #   prompt → optional scene direction string
+        inputs = {
+            'image': image_url,
+            'audio': audio_url,
+        }
+        if prompt:
+            inputs['prompt'] = prompt
+
+        output = _replicate_run(
+            api_key,
+            'bytedance/omni-human-1.5',
+            inputs,
+            timeout_mins=10
+        )
+
+        # output is a URL string or FileOutput object
+        video_url = str(output) if not isinstance(output, list) else str(output[0])
+
+        update_job(job_id, progress=90, step='Downloading result...')
+        out_file = f"omnihuman_{job_id}.mp4"
+        download_to_output(video_url, out_file)
+
+        update_job(job_id,
+            status='done', progress=100, step='OmniHuman complete! ✅',
+            result_url=f'/files/{out_file}',
+            external_url=video_url
+        )
+
+    except Exception as e:
+        update_job(job_id, status='error', error=f"{e} | {traceback.format_exc()}")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
