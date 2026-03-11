@@ -100,38 +100,64 @@ def _replicate_upload(api_key, file_path, mime):
 
 
 def _replicate_run(api_key, model, inputs, timeout_mins=15):
-    auth = {'Authorization': f'Bearer {api_key}'}
+    """
+    Run a Replicate model. Handles two API styles:
+      - New models (no public versions): POST /v1/models/{owner}/{name}/predictions
+      - Legacy models (versioned):       POST /v1/predictions  with version hash
+    Tries the new style first; falls back to versioned if needed.
+    """
+    auth    = {'Authorization': f'Bearer {api_key}'}
+    headers = {**auth, 'Content-Type': 'application/json'}
 
-    # fetch latest version
-    vr = requests.get(f'https://api.replicate.com/v1/models/{model}/versions', headers=auth, timeout=30)
-    if not vr.ok:
-        raise Exception(f"Replicate versions {vr.status_code}: {vr.text}")
-    vs = vr.json().get('results', [])
-    if not vs:
-        raise Exception(f"No versions for {model}")
-    version = vs[0]['id']
-
-    # submit
+    # ── Try new-style deployment endpoint first ───────────────────────────────
+    # Used by newer official models (wan-video, stability-ai, etc.)
     pr = requests.post(
-        'https://api.replicate.com/v1/predictions',
-        headers={**auth, 'Content-Type': 'application/json'},
-        json={'version': version, 'input': inputs},
+        f'https://api.replicate.com/v1/models/{model}/predictions',
+        headers=headers,
+        json={'input': inputs},
         timeout=60
     )
+
+    # ── Fall back to versioned endpoint if new-style isn't supported ──────────
+    if pr.status_code == 404:
+        vr = requests.get(
+            f'https://api.replicate.com/v1/models/{model}/versions',
+            headers=auth, timeout=30
+        )
+        if not vr.ok:
+            raise Exception(f"Replicate versions {vr.status_code}: {vr.text}")
+        vs = vr.json().get('results', [])
+        if not vs:
+            raise Exception(f"No versions found for {model}")
+        version = vs[0]['id']
+        pr = requests.post(
+            'https://api.replicate.com/v1/predictions',
+            headers=headers,
+            json={'version': version, 'input': inputs},
+            timeout=60
+        )
+
     if not pr.ok:
         raise Exception(f"Replicate submit {pr.status_code}: {pr.text}")
+
     pred_id = pr.json()['id']
 
-    # poll
+    # ── Poll until done ───────────────────────────────────────────────────────
     for _ in range(timeout_mins * 12):
         time.sleep(5)
-        poll = requests.get(f'https://api.replicate.com/v1/predictions/{pred_id}', headers=auth, timeout=30)
+        poll = requests.get(
+            f'https://api.replicate.com/v1/predictions/{pred_id}',
+            headers=auth, timeout=30
+        )
         poll.raise_for_status()
         d = poll.json()
         if d['status'] == 'succeeded':
             return d['output']
         if d['status'] in ('failed', 'canceled'):
-            raise Exception(f"Replicate failed: {d.get('error','?')} | {str(d.get('logs',''))[-400:]}")
+            raise Exception(
+                f"Replicate failed: {d.get('error','?')} | "
+                f"logs: {str(d.get('logs',''))[-400:]}"
+            )
     raise Exception(f'Replicate timeout after {timeout_mins}m')
 
 
