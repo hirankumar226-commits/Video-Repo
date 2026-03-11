@@ -204,14 +204,15 @@ def _run_faceswap(job_id, api_key, face_path, video_path):
 
         update_job(job_id, progress=45, step='Running face swap model on Replicate...')
 
-        # lucataco/faceswap — video face swap
-        # https://replicate.com/lucataco/faceswap
+        # arabyai-replicate/roop_face_swap — video face swap (39K+ runs)
+        # Inputs: swap_image (face photo), target_video (source video)
+        # https://replicate.com/arabyai-replicate/roop_face_swap
         output = _replicate_run(
             api_key,
-            'lucataco/faceswap',   # owner/name — no version hash needed
+            'arabyai-replicate/roop_face_swap',
             {
-                'swap_image': face_url,
-                'target':     video_url_input,
+                'swap_image':   face_url,
+                'target_video': video_url_input,
             }
         )
 
