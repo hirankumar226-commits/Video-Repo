@@ -145,24 +145,23 @@ def _run_faceswap(job_id, api_key, face_path, video_path):
         import replicate
         client = replicate.Client(api_token=api_key)
 
-        update_job(job_id, status='running', progress=15, step='Encoding files...')
-        face_uri  = to_b64_uri(face_path, 'image/jpeg')
-        video_uri = to_b64_uri(video_path, 'video/mp4')
+        update_job(job_id, status='running', progress=20, step='Uploading files to Replicate...')
 
-        update_job(job_id, progress=35, step='Running face swap model on Replicate...')
-
-        # ── Model: codeplugtech/face-swap ──────────────────────────────────
-        # Change this model string if you want to try a different face swap model
-        output = client.run(
-            "yan-ops/face-swap:d28f8c8f4b5f4e85ae59a4d5eda6da97ced6df3b8e97fa32ff5e854f8f56c0dc",
-            input={
-                "source_image": face_uri,   # your AI character face
-                "target_image": video_uri,  # source reel
-            }
-        )
+        # ── Model: lucataco/faceswap (video face swap) ─────────────────────
+        # Inputs: swap_image (face photo), target (source video)
+        # Docs: https://replicate.com/lucataco/faceswap
+        with open(face_path, 'rb') as face_f, open(video_path, 'rb') as video_f:
+            update_job(job_id, progress=35, step='Running face swap on Replicate...')
+            output = client.run(
+                "lucataco/faceswap:9a4298548422074c3f57258c5d544497838d060b8c4b88b32f3ea44ca0f8a286",
+                input={
+                    "swap_image": face_f,    # AI character face image
+                    "target":     video_f,   # source reel video
+                }
+            )
 
         video_url = str(output)
-        update_job(job_id, progress=80, step='Downloading swapped video...')
+        update_job(job_id, progress=80, step='Downloading face-swapped video...')
 
         out_file = f"faceswap_{job_id}.mp4"
         download_to_output(video_url, out_file)
