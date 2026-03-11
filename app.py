@@ -140,50 +140,99 @@ def start_faceswap():
     return jsonify({'job_id': job_id})
 
 
+def _replicate_upload_file(api_key, file_path, mime_type):
+    """Upload a file to Replicate file storage, return the file URL."""
+    with open(file_path, 'rb') as f:
+        resp = requests.post(
+            'https://api.replicate.com/v1/files',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': mime_type,
+            },
+            data=f,
+            timeout=120
+        )
+    resp.raise_for_status()
+    return resp.json()['urls']['get']
+
+
+def _replicate_run(api_key, model_version, input_data):
+    """Run a Replicate model via REST API (no SDK). Returns output."""
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Content-Type': 'application/json',
+        'Prefer': 'wait'
+    }
+    body = {
+        'version': model_version,
+        'input': input_data
+    }
+    resp = requests.post(
+        'https://api.replicate.com/v1/predictions',
+        headers=headers,
+        json=body,
+        timeout=60
+    )
+    resp.raise_for_status()
+    prediction = resp.json()
+    pred_id = prediction['id']
+
+    # Poll until complete
+    for _ in range(120):
+        time.sleep(5)
+        poll = requests.get(
+            f'https://api.replicate.com/v1/predictions/{pred_id}',
+            headers={'Authorization': f'Bearer {api_key}'},
+            timeout=30
+        )
+        poll.raise_for_status()
+        data = poll.json()
+        status = data.get('status')
+        if status == 'succeeded':
+            return data['output']
+        elif status in ['failed', 'canceled']:
+            raise Exception(f"Replicate prediction failed: {data.get('error', 'Unknown error')}")
+
+    raise Exception('Replicate prediction timed out after 10 minutes')
+
+
 def _run_faceswap(job_id, api_key, face_path, video_path):
     import traceback
     try:
-        import replicate
-        client = replicate.Client(api_token=api_key)
+        update_job(job_id, status='running', progress=15, step='Uploading face image...')
+        face_url = _replicate_upload_file(api_key, face_path, 'image/jpeg')
 
-        update_job(job_id, status='running', progress=15, step='Uploading face image to Replicate...')
+        update_job(job_id, progress=30, step='Uploading source video...')
+        video_url_input = _replicate_upload_file(api_key, video_path, 'video/mp4')
 
-        # Step 1: Upload files to Replicate file storage (returns URLs)
-        with open(face_path, 'rb') as face_f:
-            face_file_obj = client.files.create(face_f)
-        face_url = face_file_obj.urls['get']
+        update_job(job_id, progress=45, step='Running face swap model on Replicate...')
 
-        update_job(job_id, progress=30, step='Uploading source video to Replicate...')
-        with open(video_path, 'rb') as video_f:
-            video_file_obj = client.files.create(video_f)
-        video_url_input = video_file_obj.urls['get']
-
-        update_job(job_id, progress=45, step='Running face swap model...')
-
-        # lucataco/faceswap: video face swap model
-        output = client.run(
-            "lucataco/faceswap:9a4298548422074c3f57258c5d544497838d060b8c4b88b32f3ea44ca0f8a286",
-            input={
-                "swap_image": face_url,       # AI character face image URL
-                "target":     video_url_input, # source reel video URL
+        # lucataco/faceswap — video face swap
+        # https://replicate.com/lucataco/faceswap
+        output = _replicate_run(
+            api_key,
+            '9a4298548422074c3f57258c5d544497838d060b8c4b88b32f3ea44ca0f8a286',
+            {
+                'swap_image': face_url,
+                'target':     video_url_input,
             }
         )
 
-        video_url = str(output)
-        update_job(job_id, progress=80, step='Downloading face-swapped video...')
+        video_url = str(output) if not isinstance(output, list) else str(output[0])
+        update_job(job_id, progress=85, step='Downloading face-swapped video...')
 
         out_file = f"faceswap_{job_id}.mp4"
         download_to_output(video_url, out_file)
 
         update_job(job_id,
-            status='done', progress=100, step='Face swap complete!',
+            status='done', progress=100, step='Face swap complete! ✅',
             result_url=f'/files/{out_file}',
             external_url=video_url
         )
 
     except Exception as e:
         tb = traceback.format_exc()
-        update_job(job_id, status='error', error=f"{str(e)}\n\nFull traceback:\n{tb}")
+        update_job(job_id, status='error', error=f"{str(e)} | Traceback: {tb}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -426,31 +475,30 @@ def start_auto_sync():
 
 
 def _run_auto_sync(job_id, api_key, video_path, audio_path):
+    import traceback
     try:
-        import replicate
-        client = replicate.Client(api_token=api_key)
+        update_job(job_id, status='running', progress=20, step='Uploading video...')
+        video_url_input = _replicate_upload_file(api_key, video_path, 'video/mp4')
 
-        update_job(job_id, status='running', progress=20, step='Encoding files...')
-        video_uri = to_b64_uri(video_path, 'video/mp4')
-        audio_uri = to_b64_uri(audio_path, 'audio/mpeg')
+        update_job(job_id, progress=35, step='Uploading audio...')
+        audio_url_input = _replicate_upload_file(api_key, audio_path, 'audio/mpeg')
 
-        update_job(job_id, progress=40, step='Running Wav2Lip on Replicate...')
+        update_job(job_id, progress=50, step='Running Wav2Lip lip sync on Replicate...')
 
-        # ── Wav2Lip model on Replicate ──────────────────────────────────────
-        # Lip sync only — expressions won't change but lips match the audio
-        output = client.run(
-            "devxpy/cog-wav2lip:15d2041ba05a0a1dcda78deb1eb4a00f95f50e9519b7ae2d32cbf8c43cc04dda",
-            input={
-                "face":          video_uri,  # face-swapped video
-                "audio":         audio_uri,  # generated speech
-                "pads":          "0 10 0 0",
-                "smooth":        True,
-                "resize_factor": 1,
-                "nosmooth":      False,
+        output = _replicate_run(
+            api_key,
+            '15d2041ba05a0a1dcda78deb1eb4a00f95f50e9519b7ae2d32cbf8c43cc04dda',
+            {
+                'face':          video_url_input,
+                'audio':         audio_url_input,
+                'pads':          '0 10 0 0',
+                'smooth':        True,
+                'resize_factor': 1,
+                'nosmooth':      False,
             }
         )
 
-        video_url = str(output)
+        video_url = str(output) if not isinstance(output, list) else str(output[0])
         update_job(job_id, progress=85, step='Downloading result...')
 
         out_file = f"pipeline_b_{job_id}.mp4"
@@ -463,7 +511,8 @@ def _run_auto_sync(job_id, api_key, video_path, audio_path):
         )
 
     except Exception as e:
-        update_job(job_id, status='error', error=str(e))
+        tb = traceback.format_exc()
+        update_job(job_id, status='error', error=f"{str(e)} | Traceback: {tb}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
