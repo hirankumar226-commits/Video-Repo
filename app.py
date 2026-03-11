@@ -327,14 +327,51 @@ def start_runway_sync():
     return jsonify({'job_id': job_id})
 
 
+def _compress_for_runway(src_path, out_path, max_mb=8):
+    """Re-encode video to stay under Runway's ~10MB base64 upload limit.
+    Targets 8MB to leave headroom after base64 encoding overhead (~33%).
+    Strategy: scale to 480p, CRF 28, limit bitrate to 800k.
+    """
+    r = subprocess.run([
+        'ffmpeg', '-y', '-i', str(src_path),
+        '-vf', 'scale=-2:480',
+        '-c:v', 'libx264', '-crf', '28', '-preset', 'fast',
+        '-b:v', '800k', '-maxrate', '800k', '-bufsize', '1600k',
+        '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+        '-an', str(out_path)
+    ], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Exception(f"ffmpeg compress failed: {r.stderr[-400:]}")
+    size_mb = out_path.stat().st_size / 1_048_576
+    if size_mb > max_mb:
+        # Second pass: tighter bitrate
+        r2 = subprocess.run([
+            'ffmpeg', '-y', '-i', str(src_path),
+            '-vf', 'scale=-2:360',
+            '-c:v', 'libx264', '-crf', '32', '-preset', 'fast',
+            '-b:v', '400k', '-maxrate', '400k', '-bufsize', '800k',
+            '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+            '-an', str(out_path)
+        ], capture_output=True, text=True)
+        if r2.returncode != 0:
+            raise Exception(f"ffmpeg second-pass compress failed: {r2.stderr[-400:]}")
+
+
 def _run_runway(job_id, key, char_path, perf_path, audio_path):
     try:
-        update_job(job_id, status='running', progress=15, step='Encoding videos...')
+        update_job(job_id, status='running', progress=10, step='Compressing videos for Runway...')
+
+        # Runway rejects requests >~10MB. Compress both videos to stay under limit.
+        perf_comp = UPLOAD_DIR / f"runway_perf_{job_id}.mp4"
+        char_comp = UPLOAD_DIR / f"runway_char_{job_id}.mp4"
+        _compress_for_runway(perf_path, perf_comp)
+        _compress_for_runway(char_path, char_comp)
+
         headers = {'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
                    'X-Runway-Version': '2024-11-06'}
         payload = {"model": "gen4_act_two",
-                   "promptVideo": to_b64_uri(perf_path, 'video/mp4'),
-                   "promptImage": to_b64_uri(char_path, 'video/mp4'),
+                   "promptVideo": to_b64_uri(perf_comp, 'video/mp4'),
+                   "promptImage": to_b64_uri(char_comp, 'video/mp4'),
                    "duration": 10, "ratio": "720:1280"}
 
         update_job(job_id, progress=30, step='Submitting to Runway Act-Two...')
@@ -399,38 +436,45 @@ def start_auto_sync():
 def _run_wav2lip(job_id, key, video_path, audio_path):
     import traceback, shutil
     try:
-        update_job(job_id, status='running', progress=15, step='Preprocessing video for face detection...')
+        update_job(job_id, status='running', progress=15, step='Preprocessing video...')
 
-        # Wav2Lip's CNN face detector fails on:
-        #   - High-res video (>720p): scale down to 480p
-        #   - Non-standard codecs / colorspace: re-encode to h264/yuv420p
-        #   - Animated/stylized faces: increase pads so detector catches more of the frame
-        vid_prep  = UPLOAD_DIR / f"wav2lip_face_{job_id}.mp4"
-        aud_name  = f"wav2lip_audio_{job_id}.mp3"
-        ffmpeg_result = subprocess.run([
+        # LatentSync (zsxkib/latent-sync) drives lip sync from audio latents —
+        # no face detector, works on Wan 2.2 animated / AI-generated characters.
+        # Preprocess to 256x256 yuv420p which is the native LatentSync resolution.
+        vid_prep = UPLOAD_DIR / f"lsync_face_{job_id}.mp4"
+        aud_name = f"lsync_audio_{job_id}.wav"
+
+        # Re-encode video: 256x256, h264, yuv420p, 25fps
+        r = subprocess.run([
             'ffmpeg', '-y', '-i', str(video_path),
-            '-vf', 'scale=-2:480',          # max height 480p, keep aspect
-            '-c:v', 'libx264',
-            '-pix_fmt', 'yuv420p',          # standard colorspace for CNNs
-            '-preset', 'fast',
-            '-an',                          # strip audio — wav2lip replaces it anyway
+            '-vf', 'scale=256:256:force_original_aspect_ratio=decrease,pad=256:256:(ow-iw)/2:(oh-ih)/2',
+            '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-preset', 'fast', '-an',
             str(vid_prep)
         ], capture_output=True, text=True)
-        if ffmpeg_result.returncode != 0:
-            raise Exception(f"ffmpeg preprocessing failed: {ffmpeg_result.stderr}")
+        if r.returncode != 0:
+            raise Exception(f"ffmpeg video preprocessing failed: {r.stderr[-300:]}")
 
-        shutil.copy(str(audio_path), str(UPLOAD_DIR / aud_name))
+        # Re-encode audio to 16kHz mono WAV (LatentSync requirement)
+        r2 = subprocess.run([
+            'ffmpeg', '-y', '-i', str(audio_path),
+            '-ar', '16000', '-ac', '1', '-f', 'wav',
+            str(UPLOAD_DIR / aud_name)
+        ], capture_output=True, text=True)
+        if r2.returncode != 0:
+            raise Exception(f"ffmpeg audio preprocessing failed: {r2.stderr[-300:]}")
 
-        # Serve files from our own public URL so Wav2Lip gets proper .mp4/.mp3 extensions
-        # (Replicate storage URLs have no extension -> args.face.split('.')[1] crashes)
+        # Serve from our own public URL (proper extensions required)
         vu = f"{BASE_URL}/files/{vid_prep.name}"
         au = f"{BASE_URL}/files/{aud_name}"
-        update_job(job_id, progress=50, step='Running Wav2Lip...')
+        update_job(job_id, progress=45, step='Running LatentSync lip sync...')
 
-        out = _replicate_run(key, 'devxpy/cog-wav2lip',
-                             {'face': vu, 'audio': au,
-                              'pads': '0 20 0 0',   # extra top pad helps detect partial faces
-                              'smooth': True, 'resize_factor': 2, 'nosmooth': False})
+        # LatentSync: audio-latent driven, no face detector, handles animated characters
+        # Replicate model: zsxkib/latent-sync
+        # Inputs: video_path (video URL), audio_path (audio URL)
+        out = _replicate_run(key, 'zsxkib/latent-sync',
+                             {'video_path': vu, 'audio_path': au,
+                              'guidance_scale': 1.5, 'inference_steps': 20},
+                             timeout_mins=20)
         out_url = str(out) if not isinstance(out, list) else str(out[0])
 
         update_job(job_id, progress=85, step='Downloading result...')
