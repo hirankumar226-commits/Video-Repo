@@ -157,24 +157,49 @@ def _replicate_upload_file(api_key, file_path, mime_type):
     return resp.json()['urls']['get']
 
 
+def _replicate_get_version(api_key, model_owner_name):
+    """Fetch the latest version hash for a community model dynamically."""
+    headers = {'Authorization': f'Bearer {api_key}'}
+    # GET /v1/models/{owner}/{name}/versions — returns list sorted newest first
+    resp = requests.get(
+        f'https://api.replicate.com/v1/models/{model_owner_name}/versions',
+        headers=headers,
+        timeout=30
+    )
+    if not resp.ok:
+        raise Exception(f"Could not fetch versions for {model_owner_name}: {resp.status_code} {resp.text}")
+    results = resp.json().get('results', [])
+    if not results:
+        raise Exception(f"No versions found for model {model_owner_name}")
+    return results[0]['id']  # latest version
+
+
 def _replicate_run(api_key, model_owner_name, input_data):
     """
-    Run a Replicate model via REST API. No version hash needed.
-    Uses POST /v1/models/{owner}/{name}/predictions — always latest version.
-    Per Replicate docs: https://replicate.com/docs/reference/http
+    Run a community Replicate model via REST API.
+    Dynamically fetches the latest version hash — never hardcoded, never stale.
     """
     headers = {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json',
     }
-    url = f'https://api.replicate.com/v1/models/{model_owner_name}/predictions'
-    resp = requests.post(url, headers=headers, json={'input': input_data}, timeout=60)
+
+    # Step 1: get latest version hash
+    version_id = _replicate_get_version(api_key, model_owner_name)
+
+    # Step 2: create prediction with version hash
+    resp = requests.post(
+        'https://api.replicate.com/v1/predictions',
+        headers=headers,
+        json={'version': version_id, 'input': input_data},
+        timeout=60
+    )
     if not resp.ok:
         raise Exception(f"Replicate {resp.status_code}: {resp.text}")
 
     pred_id = resp.json()['id']
 
-    # Poll until complete (max 10 min)
+    # Step 3: poll until complete (max 10 min)
     for _ in range(120):
         time.sleep(5)
         poll = requests.get(
