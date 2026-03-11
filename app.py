@@ -142,12 +142,14 @@ def start_faceswap():
 
 def _replicate_upload_file(api_key, file_path, mime_type):
     """Upload a file to Replicate file storage, return the file URL."""
+    filename = Path(file_path).name
     with open(file_path, 'rb') as f:
         resp = requests.post(
             'https://api.replicate.com/v1/files',
             headers={
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': mime_type,
+                'Content-Disposition': f'attachment; filename="{filename}"',
             },
             data=f,
             timeout=120
